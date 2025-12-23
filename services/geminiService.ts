@@ -1,21 +1,14 @@
 // This service now delegates the AI generation to a secure serverless function.
 // This prevents the API Key from being exposed in the browser's network tab or source code.
 
-export const rewriteContent = async (
-  currentContent: string,
-  instruction: string
-): Promise<string> => {
+const callGemini = async (payload: any): Promise<string> => {
   try {
-    // Call the serverless function securely
     const response = await fetch('/.netlify/functions/gemini', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        currentContent,
-        instruction
-      }),
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -29,4 +22,17 @@ export const rewriteContent = async (
     console.error("AI Service Error:", error);
     throw new Error("AI Assistant is unavailable. Please check your network connection.");
   }
+};
+
+export const rewriteContent = async (
+  currentContent: string,
+  instruction: string
+): Promise<string> => {
+  return callGemini({ currentContent, instruction, mode: 'rewrite' });
+};
+
+export const chatWithAi = async (
+  instruction: string
+): Promise<string> => {
+  return callGemini({ instruction, mode: 'chat' });
 };

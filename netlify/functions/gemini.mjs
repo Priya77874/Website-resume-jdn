@@ -22,38 +22,47 @@ export default async (req, context) => {
 
     // 2. Parse the incoming request body
     const body = await req.json();
-    const { currentContent, instruction } = body;
+    const { currentContent, instruction, mode } = body;
 
-    if (!currentContent || !instruction) {
-      return new Response(JSON.stringify({ error: "Missing content or instruction." }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" }
-      });
-    }
-
-    // 3. Initialize the Gemini API securely on the server side
     const ai = new GoogleGenAI({ apiKey });
+    let prompt;
 
-    // 4. Construct the prompt
-    const prompt = `
-      Role: Professional Resume Editor.
-      Task: Rewrite the following resume content based on this instruction: "${instruction}".
-      
-      Content to Rewrite:
-      "${currentContent}"
-      
-      Constraint: Return ONLY the improved HTML code suitable for insertion into a <div> or <ul>. Do not add markdown blocks like \`\`\`html. Keep formatting simple.
-    `;
+    if (mode === 'chat') {
+       // General Assistant Mode
+       if (!instruction) {
+          return new Response(JSON.stringify({ error: "Missing user query." }), { status: 400 });
+       }
+       prompt = `
+         Role: Professional & Helpful Career Assistant.
+         User Query: "${instruction}"
+         Task: Provide a clear, professional, and helpful answer related to resumes, job interviews, career advice, or general queries. Keep it concise.
+         Output: Plain text with simple formatting if needed.
+       `;
+    } else {
+       // Resume Improver Mode (Default)
+       if (!instruction) {
+          return new Response(JSON.stringify({ error: "Missing instruction." }), { status: 400 });
+       }
+       // Note: currentContent can be empty if generating new content
+       prompt = `
+         Role: Professional Resume Editor.
+         Task: Rewrite or Generate resume content based on this instruction: "${instruction}".
+         ${currentContent ? `Content to Rewrite: "${currentContent}"` : ''}
+         Constraint: Return ONLY the improved HTML code suitable for insertion into a <div> or <ul>. Do not add markdown blocks like \`\`\`html. Keep formatting simple.
+       `;
+    }
 
     // 5. Call the model
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // Or 'gemini-2.5-flash-latest'
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
     // 6. Clean and return the result
     let result = response.text || '';
-    result = result.replace(/```html/g, '').replace(/```/g, '').trim();
+    if (mode !== 'chat') {
+        result = result.replace(/```html/g, '').replace(/```/g, '').trim();
+    }
 
     return new Response(JSON.stringify({ result }), {
       status: 200,

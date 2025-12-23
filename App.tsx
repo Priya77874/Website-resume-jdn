@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { Editable } from './components/Editable';
-import { rewriteContent } from './services/geminiService';
+import { rewriteContent, chatWithAi } from './services/geminiService';
 import { ResumeData, ThemeColors, GuestUser, GuestPermissions, CertLinks } from './types';
 
 // Declare globals for CDN libs
@@ -159,10 +159,14 @@ const App: React.FC = () => {
   const [revertData, setRevertData] = useState<ResumeData | null>(null);
   
   // AI State
+  const [aiMode, setAiMode] = useState<'improver' | 'assistant'>('improver');
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiTarget, setAiTarget] = useState<keyof ResumeData>('objective');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState('');
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const chatScrollRef = useRef<HTMLDivElement>(null);
 
   // Details Modal State
   const [dmTab, setDmTab] = useState('work');
@@ -392,6 +396,13 @@ const App: React.FC = () => {
       };
   }, [authMode]);
 
+  // Scroll Chat to bottom
+  useEffect(() => {
+    if(chatScrollRef.current) {
+        chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatHistory, aiMode]);
+
   const updateThemeCSS = (sidebar: string, accent: string, text: string) => {
       document.documentElement.style.setProperty('--sidebar-bg', sidebar);
       document.documentElement.style.setProperty('--accent-blue', accent);
@@ -541,6 +552,22 @@ const App: React.FC = () => {
     } finally {
       setAiLoading(false);
     }
+  };
+
+  const handleAiChat = async () => {
+      if(!chatInput.trim()) return;
+      const userMsg = chatInput;
+      setChatHistory(prev => [...prev, {role: 'user', text: userMsg}]);
+      setChatInput('');
+      setAiLoading(true);
+      try {
+          const res = await chatWithAi(userMsg);
+          setChatHistory(prev => [...prev, {role: 'ai', text: res}]);
+      } catch(e) {
+          setChatHistory(prev => [...prev, {role: 'ai', text: "Error: Unable to get response."}]);
+      } finally {
+          setAiLoading(false);
+      }
   };
 
   const applyAiResult = () => {
@@ -739,24 +766,57 @@ const App: React.FC = () => {
 
   const performCrop = () => {
       if(cropperRef.current) {
-          const canvas = cropperRef.current.getCroppedCanvas({width: 300});
+          // Use transparent fill to handle edge cases where crop might exceed image bounds
+          const canvas = cropperRef.current.getCroppedCanvas({
+              width: 300,
+              fillColor: 'transparent'
+          });
           
-          // Automatic Background Removal for Signatures
+          // Advanced Background Removal for Signatures
           if (cropType === 'signature') {
               const ctx = canvas.getContext('2d', { willReadFrequently: true });
               if (ctx) {
                   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                   const data = imgData.data;
-                  // Iterate over pixels to remove white/light background
+                  
+                  // Contrast enhancement factor
+                  const contrast = 1.2; 
+                  const intercept = 128 * (1 - contrast);
+                  let opaqueCount = 0;
+
                   for (let i = 0; i < data.length; i += 4) {
-                      const r = data[i];
-                      const g = data[i + 1];
-                      const b = data[i + 2];
-                      // Threshold: If pixel is light gray or white (>190), make it transparent
-                      if (r > 190 && g > 190 && b > 190) {
-                          data[i + 3] = 0;
+                      let r = data[i];
+                      let g = data[i + 1];
+                      let b = data[i + 2];
+                      
+                      // Apply contrast
+                      r = r * contrast + intercept;
+                      g = g * contrast + intercept;
+                      b = b * contrast + intercept;
+
+                      // Clamp values
+                      r = Math.min(255, Math.max(0, r));
+                      g = Math.min(255, Math.max(0, g));
+                      b = Math.min(255, Math.max(0, b));
+
+                      // Calculate luminance
+                      // Formula: 0.299*R + 0.587*G + 0.114*B
+                      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+                      
+                      // Threshold for background removal
+                      if (brightness > 150) {
+                          data[i + 3] = 0; // Transparent
+                      } else {
+                          data[i + 3] = 255; // Opaque
+                          opaqueCount++;
                       }
                   }
+                  
+                  if (opaqueCount < 50) {
+                      alert("Please ensure the signature is dark on a light background.");
+                      return;
+                  }
+                  
                   ctx.putImageData(imgData, 0, 0);
               }
           }
@@ -1559,7 +1619,7 @@ const App: React.FC = () => {
                                 }} />
                               </>
                           ) : (
-                              <input type="text" className="dm-input" value={item} onChange={e => {
+                              <input type="text" className="dm-input" value={item as string} onChange={e => {
                                   const newData = [...localDetails]; newData[i] = e.target.value; setLocalDetails(newData);
                               }} />
                           )}
@@ -1585,37 +1645,87 @@ const App: React.FC = () => {
           </div>
       </div>
       
-      {/* AI Modal */}
+      {/* AI Modal - Dual Mode */}
       <div className={`modal-overlay ${activeModal === 'ai' ? 'open' : ''}`}>
-          <div className="modal-box" style={{width: '600px'}}>
-              <h3 style={{marginBottom: '20px', color: '#6366f1'}}><i className="fa-solid fa-robot"></i> AI Resume Assistant</h3>
-              <div style={{width:'100%', marginTop:'10px', borderTop:'1px solid #eee', paddingTop:'15px'}}>
-                   <div style={{marginBottom:'20px'}}>
-                        <label style={{display:'block', marginBottom:'8px', fontSize:'13px', fontWeight:600}}>Target Section</label>
-                        <select className="login-input" style={{padding:'10px'}} value={aiTarget} onChange={(e) => setAiTarget(e.target.value as any)}>
-                            <option value="objective">Career Objective</option>
-                            <option value="techSkills">Technical Skills</option>
-                            <option value="softSkills">Soft Skills</option>
-                            <option value="declaration">Declaration</option>
-                        </select>
-                   </div>
-                   <div style={{marginBottom:'20px'}}>
-                        <label style={{display:'block', marginBottom:'8px', fontSize:'13px', fontWeight:600}}>Instruction</label>
-                        <textarea className="login-input" rows={3} placeholder="Make it more professional..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}></textarea>
-                   </div>
-                   <button className="btn btn-ai" style={{width:'100%', justifyContent:'center'}} onClick={handleAiImprove} disabled={aiLoading}>
-                       <i className="fa-solid fa-bolt"></i> {aiLoading ? 'Thinking...' : 'Generate Improvement'}
-                   </button>
+          <div className="modal-box" style={{width: '600px', maxHeight: '80vh'}}>
+              <h3 style={{marginBottom: '10px', color: '#6366f1'}}><i className="fa-solid fa-robot"></i> AI Assistant</h3>
+              
+              <div className="dm-tabs" style={{marginBottom:'15px', paddingBottom:'5px', borderBottom:'1px solid #e2e8f0'}}>
+                  <div className={`dm-tab ${aiMode === 'improver' ? 'active' : ''}`} onClick={() => setAiMode('improver')}>
+                      <i className="fa-solid fa-pen-nib"></i> Resume Improver
+                  </div>
+                  <div className={`dm-tab ${aiMode === 'assistant' ? 'active' : ''}`} onClick={() => setAiMode('assistant')}>
+                      <i className="fa-solid fa-comments"></i> General Assistant
+                  </div>
+              </div>
 
-                   {aiResult && (
-                       <div style={{marginTop:'20px', background:'#f8fafc', padding:'15px', borderRadius:'10px', border:'1px solid #e2e8f0'}}>
-                           <label style={{fontWeight:600, color:'#475569', marginBottom:'5px', display:'block'}}>AI Suggestion:</label>
-                           <div className="editable" style={{border:'1px solid #ddd', padding:'10px', borderRadius:'8px', background:'#fff', minHeight:'60px', fontSize:'13px', marginBottom:'10px'}} dangerouslySetInnerHTML={{__html: aiResult}}></div>
-                           <div className="modal-actions" style={{justifyContent: 'flex-end', marginTop:0}}>
-                               <button className="btn btn-save" onClick={applyAiResult}>Apply to Resume</button>
-                           </div>
-                       </div>
-                   )}
+              <div style={{width:'100%', overflowY:'auto', flex:1}}>
+                  {aiMode === 'improver' ? (
+                      <div>
+                          <div style={{marginBottom:'20px'}}>
+                                <label style={{display:'block', marginBottom:'8px', fontSize:'13px', fontWeight:600}}>Target Section</label>
+                                <select className="login-input" style={{padding:'10px'}} value={aiTarget as string} onChange={(e) => setAiTarget(e.target.value as any)}>
+                                    <option value="objective">Career Objective</option>
+                                    <option value="techSkills">Technical Skills</option>
+                                    <option value="softSkills">Soft Skills</option>
+                                    <option value="declaration">Declaration</option>
+                                </select>
+                          </div>
+                          <div style={{marginBottom:'20px'}}>
+                                <label style={{display:'block', marginBottom:'8px', fontSize:'13px', fontWeight:600}}>Instruction</label>
+                                <textarea className="login-input" rows={3} placeholder="Make it more professional..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}></textarea>
+                          </div>
+                          <button className="btn btn-ai" style={{width:'100%', justifyContent:'center'}} onClick={handleAiImprove} disabled={aiLoading}>
+                              <i className="fa-solid fa-bolt"></i> {aiLoading ? 'Thinking...' : 'Generate Improvement'}
+                          </button>
+
+                          {aiResult && (
+                              <div style={{marginTop:'20px', background:'#f8fafc', padding:'15px', borderRadius:'10px', border:'1px solid #e2e8f0'}}>
+                                  <label style={{fontWeight:600, color:'#475569', marginBottom:'5px', display:'block'}}>AI Suggestion:</label>
+                                  <div className="editable" style={{border:'1px solid #ddd', padding:'10px', borderRadius:'8px', background:'#fff', minHeight:'60px', fontSize:'13px', marginBottom:'10px'}} dangerouslySetInnerHTML={{__html: aiResult}}></div>
+                                  <div className="modal-actions" style={{justifyContent: 'flex-end', marginTop:0}}>
+                                      <button className="btn btn-save" onClick={applyAiResult}>Apply to Resume</button>
+                                  </div>
+                              </div>
+                          )}
+                      </div>
+                  ) : (
+                      <div style={{display:'flex', flexDirection:'column', height:'400px'}}>
+                          <div ref={chatScrollRef} style={{flex:1, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'15px', overflowY:'auto', marginBottom:'15px', display:'flex', flexDirection:'column', gap:'10px'}}>
+                              {chatHistory.length === 0 && <div style={{textAlign:'center', color:'#94a3b8', fontSize:'13px', marginTop:'20px'}}>Ask anything about career guidance, interview tips, or resume help.</div>}
+                              {chatHistory.map((msg, i) => (
+                                  <div key={i} style={{alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth:'80%'}}>
+                                      <div style={{
+                                          background: msg.role === 'user' ? '#3b82f6' : '#fff',
+                                          color: msg.role === 'user' ? '#fff' : '#334155',
+                                          padding:'10px 14px',
+                                          borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
+                                          fontSize:'14px',
+                                          border: msg.role === 'ai' ? '1px solid #e2e8f0' : 'none',
+                                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                      }}>
+                                          {msg.text}
+                                      </div>
+                                  </div>
+                              ))}
+                              {aiLoading && <div style={{alignSelf:'flex-start', color:'#64748b', fontSize:'12px', marginLeft:'10px'}}><i className="fa-solid fa-circle-notch fa-spin"></i> Typing...</div>}
+                          </div>
+                          <div style={{display:'flex', gap:'10px'}}>
+                              <input 
+                                  type="text" 
+                                  className="login-input" 
+                                  style={{flex:1}} 
+                                  placeholder="Type your question..." 
+                                  value={chatInput} 
+                                  onChange={e => setChatInput(e.target.value)}
+                                  onKeyDown={e => e.key === 'Enter' && handleAiChat()}
+                              />
+                              <button className="btn btn-blue" onClick={handleAiChat} disabled={aiLoading || !chatInput.trim()}>
+                                  <i className="fa-solid fa-paper-plane"></i>
+                              </button>
+                          </div>
+                      </div>
+                  )}
               </div>
               <div className="modal-actions" style={{marginTop:'20px'}}>
                   <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Close</button>
