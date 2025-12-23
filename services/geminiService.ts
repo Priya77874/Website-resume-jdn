@@ -32,7 +32,8 @@ export const rewriteContent = async (
 };
 
 export const chatWithAi = async (
-  instruction: string
+  instruction: string,
+  image?: string
 ): Promise<string> => {
-  return callGemini({ instruction, mode: 'chat' });
+  return callGemini({ instruction, image, mode: 'chat' });
 };
