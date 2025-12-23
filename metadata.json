@@ -1,0 +1,7 @@
+{
+  "name": "Hello Raj Resume Builder 1",
+  "description": "A secure, professional resume builder with admin/guest modes, PDF generation, and AI assistance.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
