@@ -215,13 +215,14 @@ const App: React.FC = () => {
   const [croppingImg, setCroppingImg] = useState<string | null>(null);
   const [cropType, setCropType] = useState<'profile' | 'signature'>('profile');
 
-  // VIEWPORT CONTROL: Force Desktop Mode on Mobile (Persistent)
-  // This applies to both Login and Resume pages as they are children of App
+  // VIEWPORT CONTROL: FORCE DESKTOP MODE ON MOBILE
+  // Setting width=1280 forces mobile browsers to render the page at that width.
+  // By removing specific initial-scale or setting it to rely on the width, 
+  // the browser naturally zooms out to fit the 1280px content into the mobile screen.
   useEffect(() => {
     const enforceDesktopMode = () => {
         let metaViewport = document.querySelector('meta[name="viewport"]');
-        // Force width to 1280 to simulate desktop, allow user scale for zoom gestures
-        const content = 'width=1280, initial-scale=0.1, user-scalable=yes, shrink-to-fit=no';
+        const content = 'width=1280, initial-scale=0.1, user-scalable=yes';
         
         if (metaViewport) {
             metaViewport.setAttribute('content', content);
@@ -231,11 +232,36 @@ const App: React.FC = () => {
             meta.content = content;
             document.head.appendChild(meta);
         }
+        
+        // Ensure body respects this width to fill background
+        document.body.style.minWidth = '1280px';
     };
 
     enforceDesktopMode();
     window.addEventListener('resize', enforceDesktopMode);
     return () => window.removeEventListener('resize', enforceDesktopMode);
+  }, []);
+
+  // COPY/CUT BLOCKING (Paste Allowed) - Strict Enforcement with Capture Phase
+  useEffect(() => {
+      const preventCopyCut = (e: ClipboardEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+      };
+      
+      // Use capture: true to intercept events before they reach targets
+      window.addEventListener('copy', preventCopyCut, { capture: true });
+      window.addEventListener('cut', preventCopyCut, { capture: true });
+      
+      // Disable drag and drop for text
+      window.addEventListener('dragstart', (e) => e.preventDefault(), { capture: true });
+      
+      return () => {
+          window.removeEventListener('copy', preventCopyCut, { capture: true });
+          window.removeEventListener('cut', preventCopyCut, { capture: true });
+          window.removeEventListener('dragstart', (e) => e.preventDefault(), { capture: true });
+      };
   }, []);
 
   // Load Data
@@ -354,21 +380,27 @@ const App: React.FC = () => {
         return false;
     };
     
-    // Prevent Touch Context (Long Press on Mobile)
+    // Prevent Touch Context & 3-Finger Gesture
     const handleTouchStart = (e: TouchEvent) => {
         if (e.touches.length > 1) { // Block multi-touch
             e.preventDefault();
         }
+        // Specific check for 3 fingers (often used for screenshots)
+        if (e.touches.length === 3) {
+            setBlackout(true);
+            setTimeout(() => setBlackout(false), 1500); // Longer blackout
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        }
     };
     
-    // Silent App Switching Protection
+    // Visibility Change: Blackout on App Switch/Minimize
     const handleVisibilityChange = () => {
         if (document.hidden) {
-            // Instantly blackout when app is hidden/switched to protect "Recent Apps" screenshot
             setBlackout(true);
         } else {
-            // Remove blackout when coming back
-            setTimeout(() => setBlackout(false), 200); 
+            // Delay removal to ensure obscured in switcher transition
+            setTimeout(() => setBlackout(false), 500);
         }
     };
     
@@ -1066,7 +1098,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div id="protected-content">
+    <div id="protected-content" onCopy={(e) => { e.preventDefault(); return false; }} onCut={(e) => { e.preventDefault(); return false; }}>
       {/* Styles for Chat Content & Privacy Blackout */}
       <style>{`
           .ai-message-content { line-height: 1.6; font-size: 14px; color: #374151; }
