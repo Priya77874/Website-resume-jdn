@@ -140,6 +140,7 @@ const App: React.FC = () => {
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [timeLeft, setTimeLeft] = useState("");
+  const [blackout, setBlackout] = useState(false);
   
   // History for Undo/Redo
   const [history, setHistory] = useState<ResumeData[]>([INITIAL_DATA]);
@@ -213,6 +214,29 @@ const App: React.FC = () => {
   const cropperRef = useRef<any>(null);
   const [croppingImg, setCroppingImg] = useState<string | null>(null);
   const [cropType, setCropType] = useState<'profile' | 'signature'>('profile');
+
+  // VIEWPORT CONTROL: Force Desktop Mode on Mobile (Persistent)
+  // This applies to both Login and Resume pages as they are children of App
+  useEffect(() => {
+    const enforceDesktopMode = () => {
+        let metaViewport = document.querySelector('meta[name="viewport"]');
+        // Force width to 1280 to simulate desktop, allow user scale for zoom gestures
+        const content = 'width=1280, initial-scale=0.1, user-scalable=yes, shrink-to-fit=no';
+        
+        if (metaViewport) {
+            metaViewport.setAttribute('content', content);
+        } else {
+            const meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = content;
+            document.head.appendChild(meta);
+        }
+    };
+
+    enforceDesktopMode();
+    window.addEventListener('resize', enforceDesktopMode);
+    return () => window.removeEventListener('resize', enforceDesktopMode);
+  }, []);
 
   // Load Data
   useEffect(() => {
@@ -302,14 +326,22 @@ const App: React.FC = () => {
 
   // Security, Timer & Dynamic Link Rotation
   useEffect(() => {
-    // Advanced Security: Block Shortcuts & Context Menu
+    // Advanced Security: Silent Screenshot Blocking & Shortcut Prevention
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Silent Block PrintScreen (Windows)
+      if (e.key === 'PrintScreen') {
+         setBlackout(true);
+         setTimeout(() => setBlackout(false), 1000); // Blackout for 1 second silently
+         e.preventDefault();
+         return false;
+      }
+      
       // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C (Inspect)
       // Block Ctrl+U (View Source), Ctrl+S (Save), Ctrl+P (Print)
       if (
         e.key === 'F12' || 
         (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || 
-        (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'p'))
+        (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'p' || e.key === 'U'))
       ) {
         e.preventDefault();
         e.stopPropagation();
@@ -329,9 +361,22 @@ const App: React.FC = () => {
         }
     };
     
+    // Silent App Switching Protection
+    const handleVisibilityChange = () => {
+        if (document.hidden) {
+            // Instantly blackout when app is hidden/switched to protect "Recent Apps" screenshot
+            setBlackout(true);
+        } else {
+            // Remove blackout when coming back
+            setTimeout(() => setBlackout(false), 200); 
+        }
+    };
+    
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyDown); // Catch PrintScreen on keyup too
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('touchstart', handleTouchStart, {passive: false});
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     let timer: any;
     if (authMode === 'guest' && guestUser) {
@@ -362,8 +407,10 @@ const App: React.FC = () => {
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (timer) clearInterval(timer);
       clearInterval(rotater);
     }
@@ -559,45 +606,51 @@ const App: React.FC = () => {
   const handleAiImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       if(e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
-          // Image resize logic to prevent payload too large errors
+          // Image/File resize & read logic
           const reader = new FileReader();
           reader.onload = (ev) => {
-              const img = new Image();
-              img.onload = () => {
-                  const canvas = document.createElement('canvas');
-                  let width = img.width;
-                  let height = img.height;
-                  const maxDim = 800; // Resize to max 800px
-                  
-                  if (width > height) {
-                      if (width > maxDim) {
-                          height *= maxDim / width;
-                          width = maxDim;
+              const result = ev.target?.result as string;
+              // Check if PDF
+              if (file.type === 'application/pdf') {
+                  setChatImage(result); // Pass Data URI as is for PDF
+              } else {
+                  // It's an image, resize to prevent payload too large
+                  const img = new Image();
+                  img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      let width = img.width;
+                      let height = img.height;
+                      const maxDim = 800; // Resize to max 800px
+                      
+                      if (width > height) {
+                          if (width > maxDim) {
+                              height *= maxDim / width;
+                              width = maxDim;
+                          }
+                      } else {
+                          if (height > maxDim) {
+                              width *= maxDim / height;
+                              height = maxDim;
+                          }
                       }
-                  } else {
-                      if (height > maxDim) {
-                          width *= maxDim / height;
-                          height = maxDim;
+                      
+                      canvas.width = width;
+                      canvas.height = height;
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                          ctx.drawImage(img, 0, 0, width, height);
+                          // High quality compression
+                          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                          setChatImage(dataUrl);
+                      } else {
+                          setChatImage(result);
                       }
-                  }
-                  
-                  canvas.width = width;
-                  canvas.height = height;
-                  const ctx = canvas.getContext('2d');
-                  if (ctx) {
-                      ctx.drawImage(img, 0, 0, width, height);
-                      // High quality compression
-                      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                      setChatImage(dataUrl);
-                  } else {
-                      // Fallback if canvas fails
-                      setChatImage(ev.target?.result as string);
-                  }
-              };
-              img.src = ev.target?.result as string;
+                  };
+                  img.src = result;
+              }
           };
           reader.readAsDataURL(file);
-          e.target.value = ''; // Reset input to allow re-upload of same file
+          e.target.value = ''; // Reset input
       }
   };
 
@@ -611,7 +664,8 @@ const App: React.FC = () => {
       setChatImage(null);
       setAiLoading(true);
       try {
-          const res = await chatWithAi(userMsg, imgToSend || undefined);
+          // Pass the ENTIRE resume data as context for the AI
+          const res = await chatWithAi(userMsg, imgToSend || undefined, data);
           setChatHistory(prev => [...prev, {role: 'ai', text: res}]);
       } catch(e) {
           setChatHistory(prev => [...prev, {role: 'ai', text: "Error: Unable to get response."}]);
@@ -1013,7 +1067,60 @@ const App: React.FC = () => {
 
   return (
     <div id="protected-content">
+      {/* Styles for Chat Content & Privacy Blackout */}
+      <style>{`
+          .ai-message-content { line-height: 1.6; font-size: 14px; color: #374151; }
+          .ai-message-content ul { padding-left: 20px; list-style-type: none; margin: 8px 0; }
+          .ai-message-content li { margin-bottom: 6px; position: relative; padding-left: 15px; }
+          .ai-message-content li::before { content: '•'; color: #3b82f6; position: absolute; left: 0; font-weight: bold; }
+          .ai-message-content p { margin-bottom: 8px; }
+          .ai-message-content b, .ai-message-content strong { font-weight: 700; color: #1e293b; }
+          
+          /* ChatGPT Style Bubbles */
+          .chat-bubble-user {
+              background-color: #3b82f6;
+              color: white;
+              padding: 12px 16px;
+              border-radius: 18px 18px 4px 18px;
+              max-width: 85%;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              font-size: 14px;
+              align-self: flex-end;
+          }
+          .chat-bubble-ai {
+              background-color: #f3f4f6;
+              color: #1f2937;
+              padding: 12px 16px;
+              border-radius: 18px 18px 18px 4px;
+              max-width: 85%;
+              box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+              font-size: 14px;
+              align-self: flex-start;
+              border: 1px solid #e5e7eb;
+          }
+          .chat-avatar {
+              width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
+          }
+
+          /* Blackout Overlay */
+          #privacy-curtain {
+              position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+              background-color: #000; z-index: 2147483647; 
+              display: ${blackout ? 'flex' : 'none'};
+              align-items: center; justify-content: center;
+              color: #fff; font-size: 24px; font-weight: bold;
+              pointer-events: all;
+          }
+      `}</style>
       
+      {/* Privacy Curtain for Anti-Screenshot */}
+      <div id="privacy-curtain">
+          <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'20px'}}>
+              <i className="fa-solid fa-shield-halved" style={{fontSize:'50px', color:'#ef4444'}}></i>
+              <span>Screen Capture Disabled</span>
+          </div>
+      </div>
+
       {/* Floating Settings Button */}
       {(!guestUser || guestUser.permissions.toggle) && (
         <div 
@@ -1322,6 +1429,757 @@ const App: React.FC = () => {
       <input type="file" className="hidden" ref={fileInputRef} accept="image/*" onChange={(e) => handleImageUpload(e, 'profile')} />
       <input type="file" className="hidden" ref={sigInputRef} accept="image/*" onChange={(e) => handleImageUpload(e, 'signature')} />
       <input type="file" className="hidden" ref={certUploadRef} accept=".pdf,image/*" onChange={handleCertUpload} />
+
+      {/* MODALS */}
+      
+      {/* Resume Form Modal - Revamped UI/UX */}
+      {activeModal === 'resume-form' && (
+        <div className="modal-overlay open" style={{alignItems:'flex-start', paddingTop:'40px'}}>
+            <div className="modal-box" style={{width: '900px', height: '85vh', maxHeight:'800px', padding: '0', display: 'flex', flexDirection: 'column', overflow: 'hidden', borderRadius:'16px', boxShadow:'0 25px 50px -12px rgba(0, 0, 0, 0.25)'}}>
+                
+                {/* Header */}
+                <div style={{
+                    padding: '15px 25px', 
+                    background: '#fff', 
+                    borderBottom: '1px solid #e2e8f0', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center'
+                }}>
+                    <div>
+                        <h3 style={{fontSize:'18px', color:'#1e293b', margin:0, display:'flex', alignItems:'center', gap:'10px'}}>
+                            <span style={{background:'#eff6ff', color:'#3b82f6', width:'32px', height:'32px', borderRadius:'8px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px'}}>
+                                <i className="fa-solid fa-pen-nib"></i>
+                            </span>
+                            Edit Resume
+                        </h3>
+                        <div style={{fontSize:'11px', color:'#64748b', marginTop:'4px', marginLeft:'42px'}}>Completion: {calculateFormProgress()}%</div>
+                    </div>
+                    <div style={{width:'200px', background:'#f1f5f9', height:'6px', borderRadius:'3px', overflow:'hidden'}}>
+                         <div style={{width: `${calculateFormProgress()}%`, height:'100%', background:'#22c55e', transition:'width 0.5s ease'}}></div>
+                    </div>
+                    <button 
+                        onClick={() => {
+                             if(revertData) setData(revertData);
+                             setActiveModal(null);
+                        }}
+                        style={{background:'transparent', border:'none', color:'#64748b', fontSize:'18px', cursor:'pointer'}}
+                    >
+                        <i className="fa-solid fa-times"></i>
+                    </button>
+                </div>
+
+                <div style={{flex: 1, display: 'flex', overflow: 'hidden'}}>
+                    {/* Sidebar Navigation */}
+                    <div style={{width: '240px', background: '#f8fafc', borderRight: '1px solid #e2e8f0', overflowY:'auto'}}>
+                        <div style={{padding:'20px'}}>
+                            <div style={{fontSize:'11px', textTransform:'uppercase', color:'#94a3b8', fontWeight:700, marginBottom:'10px', paddingLeft:'10px'}}>Sections</div>
+                            {formTabs.map((tab, idx) => {
+                                 const isActive = formTab === tab;
+                                 const isComplete = isSectionComplete(tab);
+                                 const icons = {
+                                     personal: 'fa-user',
+                                     education: 'fa-graduation-cap',
+                                     experience: 'fa-briefcase',
+                                     skills: 'fa-laptop-code',
+                                     misc: 'fa-puzzle-piece'
+                                 };
+                                 return (
+                                    <button 
+                                        key={tab}
+                                        onClick={() => setFormTab(tab)}
+                                        style={{
+                                            width: '100%',
+                                            textAlign: 'left',
+                                            padding: '12px 15px',
+                                            marginBottom: '8px',
+                                            background: isActive ? '#fff' : 'transparent',
+                                            color: isActive ? '#2563eb' : (isComplete ? '#0f172a' : '#64748b'),
+                                            fontWeight: isActive ? 600 : 500,
+                                            borderRadius: '8px',
+                                            border: isActive ? '1px solid #bfdbfe' : '1px solid transparent',
+                                            boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                            <i className={`fa-solid ${icons[tab as keyof typeof icons]}`} style={{width:'16px', textAlign:'center', color: isActive ? '#2563eb' : '#94a3b8'}}></i>
+                                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                        </div>
+                                        {isComplete && <i className="fa-solid fa-check" style={{color:'#22c55e', fontSize:'12px'}}></i>}
+                                    </button>
+                                 )
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Main Form Content Area */}
+                    <div style={{flex: 1, display:'flex', flexDirection:'column', background:'#fff'}}>
+                        <div style={{flex:1, overflowY:'auto', padding:'30px'}}>
+                        {formTab === 'personal' && (
+                            <div className="fade-in-up">
+                                <h3 style={{marginBottom: '20px', color:'#0f172a', display:'flex', alignItems:'center', gap:'10px'}}>
+                                    <i className="fa-solid fa-user-circle" style={{color:'#3b82f6'}}></i> Personal Details
+                                </h3>
+                                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+                                    {renderInput("Full Name", data.name, v => setData({...data, name: v}))}
+                                    {renderInput("Role / Title", data.role, v => setData({...data, role: v}))}
+                                    {renderInput("Phone", data.phone, v => setData({...data, phone: v}))}
+                                    {renderInput("Email", data.email, v => setData({...data, email: v}))}
+                                    <div style={{gridColumn: '1 / -1'}}>
+                                        {renderInput("Address", data.address, v => setData({...data, address: v}))}
+                                    </div>
+                                    {renderInput("Father's Name", data.fatherName, v => setData({...data, fatherName: v}))}
+                                    {renderInput("Date of Birth", data.dob, v => setData({...data, dob: v}), "DD Month YYYY")}
+                                    {renderInput("Gender", data.gender, v => setData({...data, gender: v}))}
+                                    {renderInput("Nationality", data.nationality, v => setData({...data, nationality: v}))}
+                                    {renderInput("Marital Status", data.maritalStatus, v => setData({...data, maritalStatus: v}))}
+                                </div>
+                            </div>
+                        )}
+
+                        {formTab === 'education' && (
+                            <div className="fade-in-up">
+                                 <h3 style={{marginBottom: '20px', color:'#0f172a', display:'flex', alignItems:'center', gap:'10px'}}>
+                                    <i className="fa-solid fa-graduation-cap" style={{color:'#3b82f6'}}></i> Education
+                                 </h3>
+                                 <div style={{background:'#eff6ff', padding:'10px', borderRadius:'8px', marginBottom:'20px', fontSize:'13px', color:'#1e40af', display:'flex', alignItems:'center', gap:'10px'}}>
+                                     <i className="fa-solid fa-info-circle"></i> Entries are displayed in order on the resume.
+                                 </div>
+                                 {data.education.map((edu, i) => (
+                                     <div key={i} style={{marginBottom: '20px', padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0'}}>
+                                         <div style={{fontWeight: 600, marginBottom: '15px', color: '#334155', display:'flex', justifyContent:'space-between'}}>
+                                            <span>Level: {i===0 ? 'Post Graduation' : i===1 ? 'Graduation' : i===2 ? 'Senior Secondary' : 'Secondary'}</span>
+                                            <span style={{fontSize:'12px', color:'#94a3b8'}}>Entry #{i+1}</span>
+                                         </div>
+                                         <div style={{display:'grid', gridTemplateColumns:'2fr 2fr 1fr 1fr', gap:'15px'}}>
+                                            {renderInput("Qualification", edu.qualification, v => { const e=[...data.education]; e[i].qualification=v; setData({...data, education:e}); }, "e.g. B.A (Hons)")}
+                                            {renderInput("Board / University", edu.board, v => { const e=[...data.education]; e[i].board=v; setData({...data, education:e}); }, "e.g. CBSE")}
+                                            {renderInput("Year", edu.year, v => { const e=[...data.education]; e[i].year=v; setData({...data, education:e}); }, "YYYY")}
+                                            {renderInput("Score", edu.score, v => { const e=[...data.education]; e[i].score=v; setData({...data, education:e}); }, "% or CGPA")}
+                                         </div>
+                                     </div>
+                                 ))}
+                            </div>
+                        )}
+
+                        {formTab === 'experience' && (
+                            <div className="fade-in-up">
+                                 <h3 style={{marginBottom: '20px', color:'#0f172a', display:'flex', alignItems:'center', gap:'10px'}}>
+                                    <i className="fa-solid fa-briefcase" style={{color:'#3b82f6'}}></i> Work Experience
+                                 </h3>
+                                 {data.experience.map((exp, i) => (
+                                     <div key={i} style={{marginBottom: '15px', display:'flex', gap:'15px', alignItems:'flex-start', padding:'15px', border:'1px solid #f1f5f9', borderRadius:'10px'}}>
+                                         <div style={{flex:1}}>
+                                             {renderInput("Job Title", exp.title, v => { const ex=[...data.experience]; ex[i].title=v; setData({...data, experience:ex}); })}
+                                         </div>
+                                         <div style={{flex:1}}>
+                                             {renderInput("Company Name", exp.company, v => { const ex=[...data.experience]; ex[i].company=v; setData({...data, experience:ex}); })}
+                                         </div>
+                                         <button className="btn btn-remove" style={{marginTop:'28px', padding:'10px'}} onClick={() => {
+                                             const newExp = [...data.experience]; newExp.splice(i, 1); setData({...data, experience: newExp});
+                                         }}><i className="fa-solid fa-trash"></i></button>
+                                     </div>
+                                 ))}
+                                 <button className="btn btn-blue" style={{width:'100%', justifyContent:'center', padding:'12px'}} onClick={() => setData({...data, experience: [...data.experience, {id: Date.now().toString(), title:'', company:''}]})}>
+                                     <i className="fa-solid fa-plus"></i> Add New Experience
+                                 </button>
+                            </div>
+                        )}
+
+                        {formTab === 'skills' && (
+                            <div className="fade-in-up">
+                                 <h3 style={{marginBottom: '20px', color:'#0f172a', display:'flex', alignItems:'center', gap:'10px'}}>
+                                    <i className="fa-solid fa-laptop-code" style={{color:'#3b82f6'}}></i> Skills & Interests
+                                 </h3>
+                                 
+                                 <div className="input-group" style={{marginBottom:'25px'}}>
+                                     <label style={{display:'block', fontSize:'13px', fontWeight:600, color:'#475569', marginBottom:'8px'}}>Technical Skills (One per line)</label>
+                                     <textarea 
+                                        className="login-input" 
+                                        style={{width:'100%', height:'100px', padding:'12px', outline:'none', borderRadius:'8px', border:'1px solid #e2e8f0', fontFamily:'inherit'}} 
+                                        value={data.techSkills.join('\n')} 
+                                        onChange={e => setData({...data, techSkills: sanitize(e.target.value).split('\n')})}
+                                        placeholder="e.g. Advanced Excel..."
+                                     ></textarea>
+                                 </div>
+                                 
+                                 <div className="input-group" style={{marginBottom:'25px'}}>
+                                     <label style={{display:'block', fontSize:'13px', fontWeight:600, color:'#475569', marginBottom:'8px'}}>Soft Skills (One per line)</label>
+                                     <textarea 
+                                        className="login-input"
+                                        style={{width:'100%', height:'100px', padding:'12px', outline:'none', borderRadius:'8px', border:'1px solid #e2e8f0', fontFamily:'inherit'}}
+                                        value={data.softSkills.join('\n')} 
+                                        onChange={e => setData({...data, softSkills: sanitize(e.target.value).split('\n')})}
+                                        placeholder="e.g. Leadership..."
+                                     ></textarea>
+                                 </div>
+                                 
+                                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px'}}>
+                                     {renderInput("Languages (Comma separated)", data.languages.join(', '), v => setData({...data, languages: v.split(',').map(s=>s.trim())}))}
+                                     {renderInput("Hobbies (Comma separated)", data.hobbies.join(', '), v => setData({...data, hobbies: v.split(',').map(s=>s.trim())}))}
+                                 </div>
+                            </div>
+                        )}
+
+                        {formTab === 'misc' && (
+                            <div className="fade-in-up">
+                                 <h3 style={{marginBottom: '20px', color:'#0f172a', display:'flex', alignItems:'center', gap:'10px'}}>
+                                    <i className="fa-solid fa-puzzle-piece" style={{color:'#3b82f6'}}></i> Miscellaneous
+                                 </h3>
+                                 
+                                 <div className="input-group" style={{marginBottom:'25px'}}>
+                                     <label style={{display:'block', fontSize:'13px', fontWeight:600, color:'#475569', marginBottom:'8px'}}>Career Objective</label>
+                                     <textarea 
+                                        className="login-input" 
+                                        style={{width:'100%', height:'80px', padding:'12px', outline:'none', borderRadius:'8px', border:'1px solid #e2e8f0', fontFamily:'inherit'}}
+                                        value={data.objective} 
+                                        onChange={e => setData({...data, objective: sanitize(e.target.value)})}
+                                     ></textarea>
+                                 </div>
+                                 
+                                 <div className="input-group" style={{marginBottom:'25px'}}>
+                                     <label style={{display:'block', fontSize:'13px', fontWeight:600, color:'#475569', marginBottom:'8px'}}>Declaration</label>
+                                     <textarea 
+                                        className="login-input" 
+                                        style={{width:'100%', height:'60px', padding:'12px', outline:'none', borderRadius:'8px', border:'1px solid #e2e8f0', fontFamily:'inherit'}}
+                                        value={data.declaration} 
+                                        onChange={e => setData({...data, declaration: sanitize(e.target.value)})}
+                                     ></textarea>
+                                 </div>
+                                 
+                                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:'20px'}}>
+                                     {renderInput("Date", data.date, v => setData({...data, date: v}))}
+                                     {renderInput("Place", data.place, v => setData({...data, place: v}))}
+                                     {renderInput("Signature Name", data.signatureName, v => setData({...data, signatureName: v}))}
+                                 </div>
+                            </div>
+                        )}
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div style={{
+                            padding: '20px 30px', 
+                            borderTop: '1px solid #e2e8f0', 
+                            background: '#fff', 
+                            display: 'flex', 
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <div>
+                                 <button 
+                                    onClick={() => {
+                                        if(revertData) setData(revertData);
+                                        setActiveModal(null);
+                                    }}
+                                    className="btn"
+                                    style={{background:'#fff', color:'#ef4444', border:'1px solid #fee2e2', padding:'10px 20px'}}
+                                 >
+                                    Cancel
+                                 </button>
+                            </div>
+                            <div style={{display:'flex', gap:'12px'}}>
+                                <button 
+                                    onClick={handlePrevTab}
+                                    disabled={currentTabIdx === 0}
+                                    className="btn"
+                                    style={{
+                                        background: currentTabIdx === 0 ? '#f1f5f9' : '#fff', 
+                                        color: currentTabIdx === 0 ? '#cbd5e1' : '#475569', 
+                                        border:'1px solid #e2e8f0', 
+                                        padding:'10px 20px',
+                                        cursor: currentTabIdx === 0 ? 'not-allowed' : 'pointer'
+                                    }}
+                                >
+                                    Back
+                                </button>
+                                
+                                {currentTabIdx < formTabs.length - 1 ? (
+                                    <button 
+                                        onClick={handleNextTab}
+                                        className="btn btn-blue"
+                                        style={{padding:'10px 25px'}}
+                                    >
+                                        Next Step <i className="fa-solid fa-arrow-right" style={{marginLeft:'8px'}}></i>
+                                    </button>
+                                ) : (
+                                    <button 
+                                        onClick={() => setActiveModal(null)}
+                                        className="btn btn-save"
+                                        style={{padding:'10px 25px', boxShadow:'0 4px 12px rgba(34, 197, 94, 0.3)'}}
+                                    >
+                                        Finish & Save <i className="fa-solid fa-check" style={{marginLeft:'8px'}}></i>
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      )}
+
+      {/* Contact Actions Modal */}
+      <div className={`modal-overlay ${contactModal ? 'open' : ''}`}>
+          <div className="modal-box" style={{width: '320px'}}>
+              <h3 style={{marginBottom:'15px'}}>{contactModal?.title}</h3>
+              <ul className="action-list">
+                  {contactModal?.actions.map((act, i) => (
+                      <li key={i}>
+                          <button className="action-btn" onClick={act.fn}>
+                              <i className={act.icon}></i> {act.label}
+                          </button>
+                      </li>
+                  ))}
+              </ul>
+              <div className="modal-actions" style={{marginTop:'10px'}}>
+                  <button className="btn btn-cancel" onClick={() => setContactModal(null)}>Cancel</button>
+              </div>
+          </div>
+      </div>
+
+      {/* Details Editor Modal */}
+      <div className={`modal-overlay ${activeModal === 'details' ? 'open' : ''}`}>
+          <div className="modal-box" style={{width: '600px'}}>
+              <h3 style={{marginBottom:'10px', color:'#2c3e50'}}>Edit Points</h3>
+              
+              <div className="dm-tabs">
+                  {['work', 'tech', 'soft', 'lang', 'hobby'].map(t => {
+                      const icons = {
+                          work: 'fa-briefcase',
+                          tech: 'fa-code',
+                          soft: 'fa-comments',
+                          lang: 'fa-language',
+                          hobby: 'fa-palette'
+                      };
+                      const label = t === 'work' ? 'Work Experience' : t === 'tech' ? 'Tech Skills' : t === 'soft' ? 'Soft Skills' : t === 'lang' ? 'Languages' : 'Hobbies';
+                      return (
+                          <div key={t} className={`dm-tab ${dmTab === t ? 'active' : ''}`} onClick={() => switchDmTab(t)}>
+                              <i className={`fa-solid ${icons[t as keyof typeof icons]}`} style={{fontSize:'12px'}}></i> {label}
+                          </div>
+                      );
+                  })}
+              </div>
+
+              <div className="dm-content">
+                  {localDetails.map((item, i) => (
+                      <div className="dm-row" key={i}>
+                          {dmTab === 'work' ? (
+                              <>
+                                <input type="text" className="dm-input" placeholder="Job Title" value={item.title || ''} onChange={e => {
+                                    const newData = [...localDetails]; newData[i].title = e.target.value; setLocalDetails(newData);
+                                }} />
+                                <input type="text" className="dm-input" placeholder="Company" value={item.company || ''} onChange={e => {
+                                    const newData = [...localDetails]; newData[i].company = e.target.value; setLocalDetails(newData);
+                                }} />
+                              </>
+                          ) : (
+                              <input type="text" className="dm-input" value={item as string} onChange={e => {
+                                  const newData = [...localDetails]; newData[i] = e.target.value; setLocalDetails(newData);
+                              }} />
+                          )}
+                          <button className="dm-btn-del" onClick={() => {
+                              const newData = [...localDetails]; newData.splice(i, 1); setLocalDetails(newData);
+                          }}><i className="fa-solid fa-trash"></i></button>
+                      </div>
+                  ))}
+              </div>
+
+              <div className="dm-controls">
+                  <span style={{fontSize:'13px', fontWeight:600}}>Bulk Add:</span>
+                  <select className="dm-select" value={rowsToAdd} onChange={e => setRowsToAdd(parseInt(e.target.value))}>
+                      <option value="1">1</option><option value="3">3</option><option value="5">5</option>
+                  </select>
+                  <button className="btn btn-blue" style={{padding:'6px 10px'}} onClick={addDmRows}><i className="fa-solid fa-plus"></i> Add</button>
+              </div>
+
+              <div className="modal-actions" style={{marginTop:'20px'}}>
+                  <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button>
+                  <button className="btn btn-save" onClick={saveDetails}>Save Changes</button>
+              </div>
+          </div>
+      </div>
+      
+      {/* AI Modal - Dual Mode */}
+      <div className={`modal-overlay ${activeModal === 'ai' ? 'open' : ''}`}>
+          <div className="modal-box" style={{width: '600px', maxHeight: '80vh'}}>
+              <h3 style={{marginBottom: '10px', color: '#6366f1'}}><i className="fa-solid fa-robot"></i> AI Assistant</h3>
+              
+              <div className="dm-tabs" style={{marginBottom:'15px', paddingBottom:'5px', borderBottom:'1px solid #e2e8f0'}}>
+                  <div className={`dm-tab ${aiMode === 'improver' ? 'active' : ''}`} onClick={() => setAiMode('improver')}>
+                      <i className="fa-solid fa-pen-nib"></i> Resume Improver
+                  </div>
+                  <div className={`dm-tab ${aiMode === 'assistant' ? 'active' : ''}`} onClick={() => setAiMode('assistant')}>
+                      <i className="fa-solid fa-comments"></i> General Assistant
+                  </div>
+              </div>
+
+              <div style={{width:'100%', overflowY:'auto', flex:1}}>
+                  {aiMode === 'improver' ? (
+                      <div>
+                          <div style={{marginBottom:'20px'}}>
+                                <label style={{display:'block', marginBottom:'8px', fontSize:'13px', fontWeight:600}}>Target Section</label>
+                                <select className="login-input" style={{padding:'10px'}} value={aiTarget as string} onChange={(e) => setAiTarget(e.target.value as any)}>
+                                    <option value="objective">Career Objective</option>
+                                    <option value="techSkills">Technical Skills</option>
+                                    <option value="softSkills">Soft Skills</option>
+                                    <option value="declaration">Declaration</option>
+                                </select>
+                          </div>
+                          <div style={{marginBottom:'20px'}}>
+                                <label style={{display:'block', marginBottom:'8px', fontSize:'13px', fontWeight:600}}>Instruction</label>
+                                <textarea className="login-input" rows={3} placeholder="Make it more professional..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)}></textarea>
+                          </div>
+                          <button className="btn btn-ai" style={{width:'100%', justifyContent:'center'}} onClick={handleAiImprove} disabled={aiLoading}>
+                              <i className="fa-solid fa-bolt"></i> {aiLoading ? 'Thinking...' : 'Generate Improvement'}
+                          </button>
+
+                          {aiResult && (
+                              <div style={{marginTop:'20px', background:'#f8fafc', padding:'15px', borderRadius:'10px', border:'1px solid #e2e8f0'}}>
+                                  <label style={{fontWeight:600, color:'#475569', marginBottom:'5px', display:'block'}}>AI Suggestion:</label>
+                                  <div className="editable" style={{border:'1px solid #ddd', padding:'10px', borderRadius:'8px', background:'#fff', minHeight:'60px', fontSize:'13px', marginBottom:'10px'}} dangerouslySetInnerHTML={{__html: aiResult}}></div>
+                                  <div className="modal-actions" style={{justifyContent: 'flex-end', marginTop:0}}>
+                                      <button className="btn btn-save" onClick={applyAiResult}>Apply to Resume</button>
+                                  </div>
+                              </div>
+                          )}
+                      </div>
+                  ) : (
+                      <div style={{display:'flex', flexDirection:'column', height:'400px'}}>
+                          <div ref={chatScrollRef} style={{flex:1, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'15px', overflowY:'auto', marginBottom:'15px', display:'flex', flexDirection:'column', gap:'10px'}}>
+                              {chatHistory.length === 0 && <div style={{textAlign:'center', color:'#94a3b8', fontSize:'13px', marginTop:'20px'}}>Ask anything about career guidance, interview tips, or resume help.</div>}
+                              {chatHistory.map((msg, i) => (
+                                  <div key={i} style={{alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth:'85%', display:'flex', flexDirection:'row-reverse', gap:'8px'}}>
+                                      {msg.role === 'user' ? (
+                                        <div className="chat-avatar" style={{background:'#3b82f6', color:'white'}}><i className="fa-solid fa-user"></i></div>
+                                      ) : (
+                                        <div className="chat-avatar" style={{background:'#8b5cf6', color:'white'}}><i className="fa-solid fa-robot"></i></div>
+                                      )}
+                                      <div style={{flex:1, display:'flex', flexDirection:'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'}}>
+                                          <div className={msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}>
+                                            {msg.image && <img src={msg.image} alt="Upload" style={{maxWidth:'100%', borderRadius:'6px', marginBottom:'8px'}} />}
+                                            {msg.role === 'ai' ? <div className="ai-message-content" dangerouslySetInnerHTML={{__html: msg.text}} /> : msg.text}
+                                          </div>
+                                      </div>
+                                  </div>
+                              ))}
+                              {aiLoading && <div style={{alignSelf:'flex-start', color:'#64748b', fontSize:'12px', marginLeft:'10px'}}><i className="fa-solid fa-circle-notch fa-spin"></i> Typing...</div>}
+                          </div>
+                          
+                          {/* Image/File Preview Area */}
+                          {chatImage && (
+                             <div style={{position:'relative', display:'inline-block', marginBottom:'10px', marginLeft:'10px', alignSelf:'flex-start'}}>
+                                 {chatImage.startsWith('data:application/pdf') ? 
+                                     <div style={{padding:'5px 10px', background:'#eee', borderRadius:'4px', fontSize:'12px'}}><i className="fa-solid fa-file-pdf"></i> PDF Attached</div> :
+                                     <img src={chatImage} alt="Preview" style={{height:'60px', borderRadius:'6px', border:'1px solid #cbd5e1'}} />
+                                 }
+                                 <button onClick={() => setChatImage(null)} style={{position:'absolute', top:'-5px', right:'-5px', background:'#ef4444', color:'white', borderRadius:'50%', width:'18px', height:'18px', border:'none', fontSize:'10px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center'}}><i className="fa-solid fa-times"></i></button>
+                             </div>
+                          )}
+
+                          <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                              <button className="btn" style={{background:'#e2e8f0', color:'#475569', padding:'10px', borderRadius:'50%', width:'40px', height:'40px', display:'flex', alignItems:'center', justifyContent:'center'}} onClick={() => aiImageInputRef.current?.click()} title="Upload File">
+                                  <i className="fa-solid fa-paperclip"></i>
+                              </button>
+                              <input type="file" ref={aiImageInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleAiImageUpload} />
+                              
+                              <input 
+                                  type="text" 
+                                  className="login-input" 
+                                  style={{flex:1, borderRadius:'20px'}} 
+                                  placeholder="Message AI Assistant..." 
+                                  value={chatInput} 
+                                  onChange={e => setChatInput(e.target.value)}
+                                  onKeyDown={e => e.key === 'Enter' && handleAiChat()}
+                              />
+                              <button className="btn btn-blue" style={{borderRadius:'50%', width:'40px', height:'40px', padding:0, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={handleAiChat} disabled={aiLoading || (!chatInput.trim() && !chatImage)}>
+                                  <i className="fa-solid fa-paper-plane"></i>
+                              </button>
+                          </div>
+                      </div>
+                  )}
+              </div>
+              <div className="modal-actions" style={{marginTop:'20px'}}>
+                  <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Close</button>
+              </div>
+          </div>
+      </div>
+      
+      {/* ... (Rest of the modals remain unchanged) ... */}
+      
+      {/* Colors Modal */}
+      <div className={`modal-overlay ${activeModal === 'colors' ? 'open' : ''}`}>
+          <div className="modal-box" style={{width: '400px'}}>
+              <h3 style={{marginBottom:'15px', color:'#2c3e50'}}>Choose Theme</h3>
+              
+              {/* Presets Grid */}
+              <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', width: '100%', marginBottom: '20px', padding: '10px', background: '#f8fafc', borderRadius: '12px'}}>
+                  {PRESET_THEMES.map((theme, idx) => (
+                      <div 
+                          key={idx}
+                          title={theme.name}
+                          onClick={() => { 
+                              updateThemeCSS(theme.sidebarBg, theme.accentBlue, theme.textColor); 
+                              setData({...data, theme: { sidebarBg: theme.sidebarBg, accentBlue: theme.accentBlue, textColor: theme.textColor }}); 
+                          }}
+                          style={{
+                              width: '50px', 
+                              height: '50px', 
+                              borderRadius: '50%', 
+                              cursor: 'pointer',
+                              background: `conic-gradient(from 270deg, ${theme.sidebarBg} 0deg 180deg, ${theme.accentBlue} 180deg 270deg, #ffffff 270deg 360deg)`,
+                              border: '2px solid white',
+                              boxShadow: (data.theme.sidebarBg === theme.sidebarBg && data.theme.accentBlue === theme.accentBlue) 
+                                  ? '0 0 0 3px #3498db, 0 5px 15px rgba(0,0,0,0.2)' 
+                                  : '0 2px 5px rgba(0,0,0,0.15)',
+                              transform: (data.theme.sidebarBg === theme.sidebarBg && data.theme.accentBlue === theme.accentBlue) ? 'scale(1.1)' : 'scale(1)',
+                              transition: 'all 0.2s ease',
+                              margin: '0 auto'
+                          }}
+                      />
+                  ))}
+              </div>
+
+              <h4 style={{fontSize:'14px', marginBottom:'15px', width:'100%', textAlign:'left', color:'#64748b'}}>Custom Colors</h4>
+              
+              <div className="color-row">
+                  <span className="color-label">Sidebar Background</span>
+                  <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                      <span style={{fontSize:'12px', color:'#666'}}>{data.theme.sidebarBg}</span>
+                      <input type="color" className="color-input" value={data.theme.sidebarBg} onChange={e => { updateThemeCSS(e.target.value, data.theme.accentBlue, data.theme.textColor); setData({...data, theme: {...data.theme, sidebarBg: e.target.value}}); }} />
+                  </div>
+              </div>
+              <div className="color-row">
+                  <span className="color-label">Accent Color</span>
+                  <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                      <span style={{fontSize:'12px', color:'#666'}}>{data.theme.accentBlue}</span>
+                      <input type="color" className="color-input" value={data.theme.accentBlue} onChange={e => { updateThemeCSS(data.theme.sidebarBg, e.target.value, data.theme.textColor); setData({...data, theme: {...data.theme, accentBlue: e.target.value}}); }} />
+                  </div>
+              </div>
+              <div className="color-row">
+                  <span className="color-label">Main Text Color</span>
+                  <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                      <span style={{fontSize:'12px', color:'#666'}}>{data.theme.textColor}</span>
+                      <input type="color" className="color-input" value={data.theme.textColor} onChange={e => { updateThemeCSS(data.theme.sidebarBg, data.theme.accentBlue, e.target.value); setData({...data, theme: {...data.theme, textColor: e.target.value}}); }} />
+                  </div>
+              </div>
+              <div className="modal-actions">
+                  <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Close</button>
+                  <button className="btn btn-remove" onClick={() => { updateThemeCSS(INITIAL_THEME.sidebarBg, INITIAL_THEME.accentBlue, INITIAL_THEME.textColor); setData({...data, theme: INITIAL_THEME}); }}>Reset Default</button>
+              </div>
+          </div>
+      </div>
+
+      {/* Crop Modal */}
+      <div className={`modal-overlay ${activeModal === 'crop' ? 'open' : ''}`}>
+          <div className="modal-box">
+              <h3 style={{marginBottom:'10px'}}>Crop Image</h3>
+              <div className="img-container-crop"><img id="image-to-crop" src={croppingImg || ''} alt="" /></div>
+              <div className="modal-actions">
+                  <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button>
+                  <button className="btn btn-save" onClick={performCrop}>Crop & Save</button>
+              </div>
+          </div>
+      </div>
+
+      {/* Image Options Modal */}
+      <div className={`modal-overlay ${activeModal === 'img-opts-profile' || activeModal === 'img-opts-signature' ? 'open' : ''}`}>
+          <div className="modal-box" style={{width: '300px', textAlign: 'center'}}>
+              <h3 style={{marginBottom: '15px'}}>Image Options</h3>
+              <div className="modal-actions" style={{flexDirection: 'column'}}>
+                  <button className="btn btn-blue" style={{justifyContent: 'center'}} onClick={() => { setActiveModal(null); if(activeModal==='img-opts-profile') fileInputRef.current?.click(); else sigInputRef.current?.click(); }}>Upload / Change</button>
+                  <button className="btn btn-remove" style={{justifyContent: 'center'}} onClick={() => { setActiveModal(null); if(activeModal==='img-opts-profile') setData({...data, profileImage: DEFAULT_PROFILE_URI}); else setData({...data, signatureImage: null}); }}>Remove</button>
+                  <button className="btn btn-cancel" style={{justifyContent: 'center'}} onClick={() => setActiveModal(null)}>Cancel</button>
+              </div>
+          </div>
+      </div>
+
+       {/* Admin Security Modal */}
+       <div className={`modal-overlay ${activeModal === 'admin-sec' ? 'open' : ''}`}>
+           <div className="modal-box" style={{width:'400px'}}>
+               <h3 style={{marginBottom:'15px', color:'#2c3e50'}}>Admin Security</h3>
+               {adminSecStep === 'verify' && (
+                   <div style={{width:'100%', background:'#eef2ff', padding:'15px', borderRadius:'10px'}}>
+                       <div className="input-group" style={{marginBottom:'15px'}}>
+                           <label style={{display:'block', marginBottom:'5px', fontSize:'13px', fontWeight:600}}>Security Question</label>
+                           <select className="login-input" value={secQ} onChange={e => setSecQ(e.target.value)} style={{width:'100%', padding:'10px'}}>
+                               <option value="1">Best Institute</option>
+                               <option value="2">Village Name</option>
+                               <option value="4">Primary School Name</option>
+                           </select>
+                       </div>
+                       <div className="input-group" style={{marginBottom:'15px'}}>
+                           <label style={{display:'block', marginBottom:'5px', fontSize:'13px', fontWeight:600}}>Your Answer</label>
+                           <input type="text" className="login-input" style={{width:'100%', padding:'10px'}} value={secAns} onChange={e => setSecAns(e.target.value)} />
+                       </div>
+                       <div className="input-group">
+                           <label style={{display:'block', marginBottom:'5px', fontSize:'13px', fontWeight:600}}>Captcha: {captchaVal}</label>
+                           <input type="text" className="login-input" style={{width:'100%', padding:'10px'}} placeholder="Enter Code" value={captchaInput} onChange={e => setCaptchaInput(e.target.value)} />
+                       </div>
+                       <div className="modal-actions">
+                           <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button>
+                           <button className="btn btn-save" onClick={verifyAdminSecurity}>Verify</button>
+                       </div>
+                   </div>
+               )}
+               {adminSecStep === 'update' && (
+                    <div style={{width:'100%', background:'#f0fdf4', padding:'15px', borderRadius:'10px'}}>
+                        <h4 style={{marginBottom:'10px', color:'#166534'}}>Credentials & API Key</h4>
+                        
+                        <div style={{marginBottom: '15px'}}>
+                            <label style={{display:'block', fontSize:'12px', fontWeight:600, marginBottom:'4px'}}>Update Admin Login (Optional)</label>
+                            <input type="text" className="login-input" style={{width:'100%', padding:'8px', marginBottom:'8px'}} placeholder="New Username" value={newAdminUser} onChange={e => setNewAdminUser(e.target.value)} />
+                            <input type="text" className="login-input" style={{width:'100%', padding:'8px'}} placeholder="New Password" value={newAdminPass} onChange={e => setNewAdminPass(e.target.value)} />
+                        </div>
+
+                        <div style={{marginBottom: '15px', borderTop: '1px solid #ddd', paddingTop: '15px'}}>
+                             <label style={{display:'block', fontSize:'12px', fontWeight:600, marginBottom:'4px'}}>AI API Key</label>
+                             <input type="password" className="login-input" style={{width:'100%', padding:'8px'}} placeholder="Enter Gemini API Key" value={newApiKey} onChange={e => setNewApiKey(e.target.value)} />
+                             <small style={{display:'block', marginTop:'4px', color:'#666', fontSize:'10px'}}>Default: gen-lang-client-...</small>
+                        </div>
+
+                        <div className="modal-actions">
+                           <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button>
+                           <button className="btn btn-save" onClick={saveAdminCreds}>Save All</button>
+                        </div>
+                    </div>
+               )}
+           </div>
+       </div>
+
+        {/* Guest Manager Modal */}
+        <div className={`modal-overlay ${activeModal === 'guest-mgr' ? 'open' : ''}`}>
+           <div className="modal-box" style={{width: '500px'}}>
+               <h3 style={{marginBottom:'15px', color:'#2c3e50'}}>Manage Guest Access</h3>
+               <div style={{width:'100%', background:'#f9f9f9', padding:'15px', borderRadius:'8px', marginBottom:'15px'}}>
+                   <h4 style={{marginBottom:'10px', fontSize:'13px'}}>Create New Guest Pass</h4>
+                   <div className="guest-form-row">
+                       <input type="text" className="guest-input" placeholder="User" value={newGuestUser} onChange={e => setNewGuestUser(e.target.value)} />
+                       <input type="text" className="guest-input" placeholder="Pass" value={newGuestPass} onChange={e => setNewGuestPass(e.target.value)} />
+                   </div>
+                   <div className="guest-perms">
+                       {Object.keys(guestPerms).map(p => (
+                           <label key={p}><input type="checkbox" checked={(guestPerms as any)[p]} onChange={e => setGuestPerms({...guestPerms, [p]: e.target.checked})} /> {p.toUpperCase()}</label>
+                       ))}
+                   </div>
+                   <div className="guest-form-row" style={{alignItems: 'center'}}>
+                       <span style={{fontSize:'12px', fontWeight:600, color:'#555'}}>Time (Mins):</span>
+                       <input type="number" className="guest-input" value={newGuestTime} onChange={e => setNewGuestTime(parseInt(e.target.value))} style={{maxWidth:'80px'}} />
+                       <button className="btn btn-save" onClick={() => {
+                           const expiry = Date.now() + (newGuestTime * 60000);
+                           const newGuest = { user: newGuestUser, pass: newGuestPass, expiry, duration: newGuestTime, permissions: guestPerms };
+                           const list = [...guestList, newGuest];
+                           localStorage.setItem('rajResumeGuests', JSON.stringify(list));
+                           setGuestList(list);
+                           setNewGuestUser(''); setNewGuestPass('');
+                       }}>Generate</button>
+                   </div>
+               </div>
+               <div style={{width:'100%', maxHeight:'200px', overflowY:'auto'}}>
+                   <table className="guest-table">
+                       <thead><tr><th>User</th><th>Duration</th><th>Action</th></tr></thead>
+                       <tbody>
+                           {guestList.map((g, i) => (
+                               <tr key={i}>
+                                   <td>{g.user}</td>
+                                   <td>{g.duration}m</td>
+                                   <td><button className="btn btn-remove" style={{padding:'4px 8px'}} onClick={() => {
+                                       const list = guestList.filter((_, idx) => idx !== i);
+                                       localStorage.setItem('rajResumeGuests', JSON.stringify(list));
+                                       setGuestList(list);
+                                   }}><i className="fa-solid fa-trash"></i></button></td>
+                               </tr>
+                           ))}
+                       </tbody>
+                   </table>
+               </div>
+               <div className="modal-actions">
+                   <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Close</button>
+               </div>
+           </div>
+        </div>
+
+         {/* Social Modal */}
+         <div className={`modal-overlay ${activeModal === 'social' ? 'open' : ''}`}>
+             <div className="modal-box" style={{width:'500px'}}>
+                 <h3 style={{marginBottom:'15px'}}>Manage Social Media</h3>
+                 <div style={{width:'100%', marginBottom:'20px'}}>
+                     {data.socials.map((item, index) => (
+                         <div key={item.id} className="social-row">
+                             <input type="checkbox" checked={item.enabled} onChange={e => {
+                                 const newSocials = [...data.socials];
+                                 newSocials[index].enabled = e.target.checked;
+                                 setData({...data, socials: newSocials});
+                             }} />
+                             <div style={{width:'24px', textAlign:'center'}}><i className={item.icon} style={{color:'#3498db'}}></i></div>
+                             <input type="text" className="social-input" value={item.url} onChange={e => {
+                                 const newSocials = [...data.socials];
+                                 newSocials[index].url = e.target.value;
+                                 setData({...data, socials: newSocials});
+                             }} />
+                         </div>
+                     ))}
+                 </div>
+                 <div className="modal-actions">
+                     <button className="btn btn-save" onClick={() => setActiveModal(null)}>Done</button>
+                 </div>
+             </div>
+         </div>
+
+         {/* Cert Upload Modal */}
+         <div className={`modal-overlay ${activeModal === 'cert' ? 'open' : ''}`}>
+             <div className="modal-box" style={{width:'500px'}}>
+                 <h3 style={{marginBottom:'10px', color:'#1e3a8a'}}>Manage Certificates</h3>
+                 
+                 {/* Cert Auth Step */}
+                 {certAuthStep === 'login' ? (
+                     <div style={{width: '100%', background: '#f8fafc', padding: '15px', borderRadius: '10px'}}>
+                         <h4 style={{marginBottom:'10px', color:'#334155'}}>Verification Required</h4>
+                         <div className="input-group" style={{marginBottom:'10px'}}>
+                             <input type="text" className="login-input" placeholder="Admin Username" value={certAuthUser} onChange={e => setCertAuthUser(e.target.value)} />
+                         </div>
+                         <div className="input-group" style={{marginBottom:'10px'}}>
+                             <input type="password" className="login-input" placeholder="Admin Password" value={certAuthPass} onChange={e => setCertAuthPass(e.target.value)} />
+                         </div>
+                         <div className="input-group" style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center'}}>
+                             <div className="captcha-display" style={{flex:1, fontSize:'16px'}} onClick={() => setCertCaptchaVal(generateCaptcha())}>{certCaptchaVal}</div>
+                             <input type="text" className="login-input" style={{flex:1}} placeholder="Captcha" value={certCaptcha} onChange={e => setCertCaptcha(e.target.value)} />
+                         </div>
+                         <div className="modal-actions">
+                             <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button>
+                             <button className="btn btn-save" onClick={verifyCertAuth}>Access</button>
+                         </div>
+                     </div>
+                 ) : (
+                    /* Cert Management Step */
+                    <div style={{width:'100%'}}>
+                         {[['M.A Certificate', 'ma'], ['B.A Certificate', 'ba'], ['12th Grade', '12'], ['10th Grade', '10']].map(([label, key]) => (
+                             <div key={key} className="input-group" style={{marginBottom:'15px'}}>
+                                 <label style={{display:'block', fontSize:'13px', fontWeight:600}}>{label}</label>
+                                 <div style={{display:'flex', gap:'5px'}}>
+                                    <input type="text" className="login-input" style={{flex:1, padding:'8px'}} placeholder="Link or Data URI" value={certLinks[key as keyof CertLinks] || ''} onChange={e => setCertLinks({...certLinks, [key]: e.target.value})} />
+                                    <button className="btn btn-purple" style={{padding:'8px 12px'}} title="Upload File" onClick={() => { setActiveCertKey(key as keyof CertLinks); certUploadRef.current?.click(); }}>
+                                        <i className="fa-solid fa-upload"></i>
+                                    </button>
+                                 </div>
+                             </div>
+                         ))}
+                         
+                         <div className="modal-actions">
+                             <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Close</button>
+                             <button className="btn btn-save" onClick={() => {
+                                 localStorage.setItem('rajCertificates', btoa(JSON.stringify(certLinks)));
+                                 setActiveModal(null);
+                             }}>Save Changes</button>
+                         </div>
+                    </div>
+                 )}
+             </div>
+         </div>
     </div>
   );
 };

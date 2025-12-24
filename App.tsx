@@ -140,6 +140,7 @@ const App: React.FC = () => {
   const [toolbarOpen, setToolbarOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [timeLeft, setTimeLeft] = useState("");
+  const [blackout, setBlackout] = useState(false);
   
   // History for Undo/Redo
   const [history, setHistory] = useState<ResumeData[]>([INITIAL_DATA]);
@@ -164,9 +165,11 @@ const App: React.FC = () => {
   const [aiTarget, setAiTarget] = useState<keyof ResumeData>('objective');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState('');
-  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string}[]>([]);
+  const [chatHistory, setChatHistory] = useState<{role: 'user' | 'ai', text: string, image?: string}[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [chatImage, setChatImage] = useState<string | null>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const aiImageInputRef = useRef<HTMLInputElement>(null);
 
   // Details Modal State
   const [dmTab, setDmTab] = useState('work');
@@ -211,6 +214,29 @@ const App: React.FC = () => {
   const cropperRef = useRef<any>(null);
   const [croppingImg, setCroppingImg] = useState<string | null>(null);
   const [cropType, setCropType] = useState<'profile' | 'signature'>('profile');
+
+  // VIEWPORT CONTROL: Force Desktop Mode on Mobile (Persistent)
+  // This applies to both Login and Resume pages as they are children of App
+  useEffect(() => {
+    const enforceDesktopMode = () => {
+        let metaViewport = document.querySelector('meta[name="viewport"]');
+        // Force width to 1280 to simulate desktop, allow user scale for zoom gestures
+        const content = 'width=1280, initial-scale=0.1, user-scalable=yes, shrink-to-fit=no';
+        
+        if (metaViewport) {
+            metaViewport.setAttribute('content', content);
+        } else {
+            const meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = content;
+            document.head.appendChild(meta);
+        }
+    };
+
+    enforceDesktopMode();
+    window.addEventListener('resize', enforceDesktopMode);
+    return () => window.removeEventListener('resize', enforceDesktopMode);
+  }, []);
 
   // Load Data
   useEffect(() => {
@@ -300,14 +326,22 @@ const App: React.FC = () => {
 
   // Security, Timer & Dynamic Link Rotation
   useEffect(() => {
-    // Advanced Security: Block Shortcuts & Context Menu
+    // Advanced Security: Silent Screenshot Blocking & Shortcut Prevention
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Silent Block PrintScreen (Windows)
+      if (e.key === 'PrintScreen') {
+         setBlackout(true);
+         setTimeout(() => setBlackout(false), 1000); // Blackout for 1 second silently
+         e.preventDefault();
+         return false;
+      }
+      
       // Block F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C (Inspect)
       // Block Ctrl+U (View Source), Ctrl+S (Save), Ctrl+P (Print)
       if (
         e.key === 'F12' || 
         (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || 
-        (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'p'))
+        (e.ctrlKey && (e.key === 'u' || e.key === 's' || e.key === 'p' || e.key === 'U'))
       ) {
         e.preventDefault();
         e.stopPropagation();
@@ -327,9 +361,22 @@ const App: React.FC = () => {
         }
     };
     
+    // Silent App Switching Protection
+    const handleVisibilityChange = () => {
+        if (document.hidden) {
+            // Instantly blackout when app is hidden/switched to protect "Recent Apps" screenshot
+            setBlackout(true);
+        } else {
+            // Remove blackout when coming back
+            setTimeout(() => setBlackout(false), 200); 
+        }
+    };
+    
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyDown); // Catch PrintScreen on keyup too
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('touchstart', handleTouchStart, {passive: false});
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     let timer: any;
     if (authMode === 'guest' && guestUser) {
@@ -360,8 +407,10 @@ const App: React.FC = () => {
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (timer) clearInterval(timer);
       clearInterval(rotater);
     }
@@ -554,14 +603,69 @@ const App: React.FC = () => {
     }
   };
 
+  const handleAiImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if(e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          // Image/File resize & read logic
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+              const result = ev.target?.result as string;
+              // Check if PDF
+              if (file.type === 'application/pdf') {
+                  setChatImage(result); // Pass Data URI as is for PDF
+              } else {
+                  // It's an image, resize to prevent payload too large
+                  const img = new Image();
+                  img.onload = () => {
+                      const canvas = document.createElement('canvas');
+                      let width = img.width;
+                      let height = img.height;
+                      const maxDim = 800; // Resize to max 800px
+                      
+                      if (width > height) {
+                          if (width > maxDim) {
+                              height *= maxDim / width;
+                              width = maxDim;
+                          }
+                      } else {
+                          if (height > maxDim) {
+                              width *= maxDim / height;
+                              height = maxDim;
+                          }
+                      }
+                      
+                      canvas.width = width;
+                      canvas.height = height;
+                      const ctx = canvas.getContext('2d');
+                      if (ctx) {
+                          ctx.drawImage(img, 0, 0, width, height);
+                          // High quality compression
+                          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                          setChatImage(dataUrl);
+                      } else {
+                          setChatImage(result);
+                      }
+                  };
+                  img.src = result;
+              }
+          };
+          reader.readAsDataURL(file);
+          e.target.value = ''; // Reset input
+      }
+  };
+
   const handleAiChat = async () => {
-      if(!chatInput.trim()) return;
+      if(!chatInput.trim() && !chatImage) return;
       const userMsg = chatInput;
-      setChatHistory(prev => [...prev, {role: 'user', text: userMsg}]);
+      const imgToSend = chatImage;
+
+      setChatHistory(prev => [...prev, {role: 'user', text: userMsg, image: imgToSend || undefined}]);
       setChatInput('');
+      setChatImage(null);
       setAiLoading(true);
       try {
-          const res = await chatWithAi(userMsg);
+          // Pass the ENTIRE resume data as context for the AI
+          const res = await chatWithAi(userMsg, imgToSend || undefined, data);
           setChatHistory(prev => [...prev, {role: 'ai', text: res}]);
       } catch(e) {
           setChatHistory(prev => [...prev, {role: 'ai', text: "Error: Unable to get response."}]);
@@ -772,15 +876,15 @@ const App: React.FC = () => {
               fillColor: 'transparent'
           });
           
-          // Advanced Background Removal for Signatures
+          // Force Background Removal for Signatures (Always runs)
           if (cropType === 'signature') {
               const ctx = canvas.getContext('2d', { willReadFrequently: true });
               if (ctx) {
                   const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                   const data = imgData.data;
                   
-                  // Contrast enhancement factor
-                  const contrast = 1.2; 
+                  // Contrast enhancement factor to make ink darker and paper whiter before thresholding
+                  const contrast = 1.2; // Increase contrast by 20%
                   const intercept = 128 * (1 - contrast);
                   let opaqueCount = 0;
 
@@ -799,21 +903,23 @@ const App: React.FC = () => {
                       g = Math.min(255, Math.max(0, g));
                       b = Math.min(255, Math.max(0, b));
 
-                      // Calculate luminance
+                      // Calculate luminance (perceived brightness)
                       // Formula: 0.299*R + 0.587*G + 0.114*B
                       const brightness = (r * 299 + g * 587 + b * 114) / 1000;
                       
-                      // Threshold for background removal
+                      // Aggressive threshold for background removal (removes light grey/white/off-white)
+                      // Threshold 150 covers white paper, light grey and shadows.
                       if (brightness > 150) {
-                          data[i + 3] = 0; // Transparent
+                          data[i + 3] = 0; // Set Alpha to 0 (Transparent)
                       } else {
-                          data[i + 3] = 255; // Opaque
+                          data[i + 3] = 255; // Set Alpha to 255 (Opaque) - Make ink solid
                           opaqueCount++;
                       }
                   }
                   
+                  // If result is empty (too much removed)
                   if (opaqueCount < 50) {
-                      alert("Please ensure the signature is dark on a light background.");
+                      alert("Please correct the signature. Please ensure the signature is dark on a light background.");
                       return;
                   }
                   
@@ -961,7 +1067,60 @@ const App: React.FC = () => {
 
   return (
     <div id="protected-content">
+      {/* Styles for Chat Content & Privacy Blackout */}
+      <style>{`
+          .ai-message-content { line-height: 1.6; font-size: 14px; color: #374151; }
+          .ai-message-content ul { padding-left: 20px; list-style-type: none; margin: 8px 0; }
+          .ai-message-content li { margin-bottom: 6px; position: relative; padding-left: 15px; }
+          .ai-message-content li::before { content: '•'; color: #3b82f6; position: absolute; left: 0; font-weight: bold; }
+          .ai-message-content p { margin-bottom: 8px; }
+          .ai-message-content b, .ai-message-content strong { font-weight: 700; color: #1e293b; }
+          
+          /* ChatGPT Style Bubbles */
+          .chat-bubble-user {
+              background-color: #3b82f6;
+              color: white;
+              padding: 12px 16px;
+              border-radius: 18px 18px 4px 18px;
+              max-width: 85%;
+              box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+              font-size: 14px;
+              align-self: flex-end;
+          }
+          .chat-bubble-ai {
+              background-color: #f3f4f6;
+              color: #1f2937;
+              padding: 12px 16px;
+              border-radius: 18px 18px 18px 4px;
+              max-width: 85%;
+              box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+              font-size: 14px;
+              align-self: flex-start;
+              border: 1px solid #e5e7eb;
+          }
+          .chat-avatar {
+              width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0;
+          }
+
+          /* Blackout Overlay */
+          #privacy-curtain {
+              position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+              background-color: #000; z-index: 2147483647; 
+              display: ${blackout ? 'flex' : 'none'};
+              align-items: center; justify-content: center;
+              color: #fff; font-size: 24px; font-weight: bold;
+              pointer-events: all;
+          }
+      `}</style>
       
+      {/* Privacy Curtain for Anti-Screenshot */}
+      <div id="privacy-curtain">
+          <div style={{display:'flex', flexDirection:'column', alignItems:'center', gap:'20px'}}>
+              <i className="fa-solid fa-shield-halved" style={{fontSize:'50px', color:'#ef4444'}}></i>
+              <span>Screen Capture Disabled</span>
+          </div>
+      </div>
+
       {/* Floating Settings Button */}
       {(!guestUser || guestUser.permissions.toggle) && (
         <div 
@@ -1694,33 +1853,50 @@ const App: React.FC = () => {
                           <div ref={chatScrollRef} style={{flex:1, background:'#f8fafc', border:'1px solid #e2e8f0', borderRadius:'8px', padding:'15px', overflowY:'auto', marginBottom:'15px', display:'flex', flexDirection:'column', gap:'10px'}}>
                               {chatHistory.length === 0 && <div style={{textAlign:'center', color:'#94a3b8', fontSize:'13px', marginTop:'20px'}}>Ask anything about career guidance, interview tips, or resume help.</div>}
                               {chatHistory.map((msg, i) => (
-                                  <div key={i} style={{alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth:'80%'}}>
-                                      <div style={{
-                                          background: msg.role === 'user' ? '#3b82f6' : '#fff',
-                                          color: msg.role === 'user' ? '#fff' : '#334155',
-                                          padding:'10px 14px',
-                                          borderRadius: msg.role === 'user' ? '12px 12px 0 12px' : '12px 12px 12px 0',
-                                          fontSize:'14px',
-                                          border: msg.role === 'ai' ? '1px solid #e2e8f0' : 'none',
-                                          boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
-                                      }}>
-                                          {msg.text}
+                                  <div key={i} style={{alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start', maxWidth:'85%', display:'flex', flexDirection:'row-reverse', gap:'8px'}}>
+                                      {msg.role === 'user' ? (
+                                        <div className="chat-avatar" style={{background:'#3b82f6', color:'white'}}><i className="fa-solid fa-user"></i></div>
+                                      ) : (
+                                        <div className="chat-avatar" style={{background:'#8b5cf6', color:'white'}}><i className="fa-solid fa-robot"></i></div>
+                                      )}
+                                      <div style={{flex:1, display:'flex', flexDirection:'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start'}}>
+                                          <div className={msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}>
+                                            {msg.image && <img src={msg.image} alt="Upload" style={{maxWidth:'100%', borderRadius:'6px', marginBottom:'8px'}} />}
+                                            {msg.role === 'ai' ? <div className="ai-message-content" dangerouslySetInnerHTML={{__html: msg.text}} /> : msg.text}
+                                          </div>
                                       </div>
                                   </div>
                               ))}
                               {aiLoading && <div style={{alignSelf:'flex-start', color:'#64748b', fontSize:'12px', marginLeft:'10px'}}><i className="fa-solid fa-circle-notch fa-spin"></i> Typing...</div>}
                           </div>
-                          <div style={{display:'flex', gap:'10px'}}>
+                          
+                          {/* Image/File Preview Area */}
+                          {chatImage && (
+                             <div style={{position:'relative', display:'inline-block', marginBottom:'10px', marginLeft:'10px', alignSelf:'flex-start'}}>
+                                 {chatImage.startsWith('data:application/pdf') ? 
+                                     <div style={{padding:'5px 10px', background:'#eee', borderRadius:'4px', fontSize:'12px'}}><i className="fa-solid fa-file-pdf"></i> PDF Attached</div> :
+                                     <img src={chatImage} alt="Preview" style={{height:'60px', borderRadius:'6px', border:'1px solid #cbd5e1'}} />
+                                 }
+                                 <button onClick={() => setChatImage(null)} style={{position:'absolute', top:'-5px', right:'-5px', background:'#ef4444', color:'white', borderRadius:'50%', width:'18px', height:'18px', border:'none', fontSize:'10px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center'}}><i className="fa-solid fa-times"></i></button>
+                             </div>
+                          )}
+
+                          <div style={{display:'flex', gap:'10px', alignItems:'center'}}>
+                              <button className="btn" style={{background:'#e2e8f0', color:'#475569', padding:'10px', borderRadius:'50%', width:'40px', height:'40px', display:'flex', alignItems:'center', justifyContent:'center'}} onClick={() => aiImageInputRef.current?.click()} title="Upload File">
+                                  <i className="fa-solid fa-paperclip"></i>
+                              </button>
+                              <input type="file" ref={aiImageInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleAiImageUpload} />
+                              
                               <input 
                                   type="text" 
                                   className="login-input" 
-                                  style={{flex:1}} 
-                                  placeholder="Type your question..." 
+                                  style={{flex:1, borderRadius:'20px'}} 
+                                  placeholder="Message AI Assistant..." 
                                   value={chatInput} 
                                   onChange={e => setChatInput(e.target.value)}
                                   onKeyDown={e => e.key === 'Enter' && handleAiChat()}
                               />
-                              <button className="btn btn-blue" onClick={handleAiChat} disabled={aiLoading || !chatInput.trim()}>
+                              <button className="btn btn-blue" style={{borderRadius:'50%', width:'40px', height:'40px', padding:0, display:'flex', alignItems:'center', justifyContent:'center'}} onClick={handleAiChat} disabled={aiLoading || (!chatInput.trim() && !chatImage)}>
                                   <i className="fa-solid fa-paper-plane"></i>
                               </button>
                           </div>
@@ -1732,7 +1908,9 @@ const App: React.FC = () => {
               </div>
           </div>
       </div>
-
+      
+      {/* ... (Rest of the modals remain unchanged) ... */}
+      
       {/* Colors Modal */}
       <div className={`modal-overlay ${activeModal === 'colors' ? 'open' : ''}`}>
           <div className="modal-box" style={{width: '400px'}}>
@@ -2002,11 +2180,6 @@ const App: React.FC = () => {
                  )}
              </div>
          </div>
-
-      {/* Hidden File Inputs */}
-      <input type="file" className="hidden" ref={fileInputRef} accept="image/*" onChange={(e) => handleImageUpload(e, 'profile')} />
-      <input type="file" className="hidden" ref={sigInputRef} accept="image/*" onChange={(e) => handleImageUpload(e, 'signature')} />
-      <input type="file" className="hidden" ref={certUploadRef} accept=".pdf,image/*" onChange={handleCertUpload} />
     </div>
   );
 };

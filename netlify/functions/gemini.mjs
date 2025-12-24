@@ -22,18 +22,27 @@ export default async (req, context) => {
 
     // 2. Parse the incoming request body
     const body = await req.json();
-    const { currentContent, instruction, mode, image } = body;
+    const { currentContent, instruction, mode, image, resumeContext } = body;
 
     const ai = new GoogleGenAI({ apiKey });
     let contents = [];
 
     if (mode === 'chat') {
-       // General Assistant Mode
+       // General Assistant Mode (Friendly Friend Persona)
        let textPrompt = `
-         Role: Professional & Helpful Career Assistant.
-         User Query: "${instruction || ""}"
-         Task: Provide a clear, professional, and helpful answer related to resumes, job interviews, career advice, or general queries. Keep it concise.
-         Output: Plain text with simple formatting if needed.
+         Role: You are a friendly, helpful, and super intelligent career bestie! 🤖✨
+         Tone: Talk like a friend. Be casual, encouraging, and use simple language.
+         Formatting: Use bullet points 🟢 for lists. Use emojis 😊 generously to keep it light.
+         Task: Answer the user's question: "${instruction || ""}"
+         
+         Context (User's Current Resume Data): 
+         ${resumeContext ? JSON.stringify(resumeContext) : "No resume context provided."}
+         
+         Instructions:
+         - If the user asks about their resume, use the provided JSON context to give specific advice.
+         - If the user asks general career questions, give practical, easy-to-understand advice.
+         - Use HTML tags for formatting (<b>, <ul>, <li>, <br>).
+         - Keep it concise but warm!
        `;
        
        if (!instruction && !image) {
@@ -41,8 +50,7 @@ export default async (req, context) => {
        }
 
        if (image) {
-           // Multimodal Input
-           // Image is expected to be a Data URI: data:image/png;base64,.....
+           // Multimodal Input (Supports Image & PDF)
            const matches = image.match(/^data:(.+);base64,(.+)$/);
            if (matches) {
                const mimeType = matches[1];
@@ -51,13 +59,12 @@ export default async (req, context) => {
                    {
                        role: 'user',
                        parts: [
-                           { text: textPrompt || "Analyze this image." },
+                           { text: textPrompt || "Analyze this file." },
                            { inlineData: { mimeType, data } }
                        ]
                    }
                ];
            } else {
-               // Fallback or error if image format is invalid, but proceed with text if available
                contents = [{ role: 'user', parts: [{ text: textPrompt }] }];
            }
        } else {
@@ -65,22 +72,28 @@ export default async (req, context) => {
        }
 
     } else {
-       // Resume Improver Mode (Default)
+       // Resume Improver Mode (Formal, Human-like Persona)
        if (!instruction) {
           return new Response(JSON.stringify({ error: "Missing instruction." }), { status: 400 });
        }
-       // Note: currentContent can be empty if generating new content
+       
        let prompt = `
-         Role: Professional Resume Editor.
-         Task: Rewrite or Generate resume content based on this instruction: "${instruction}".
+         Role: Expert Executive Resume Writer.
+         Task: Rewrite or Generate content based on this instruction: "${instruction}".
          ${currentContent ? `Content to Rewrite: "${currentContent}"` : ''}
-         Constraint: Return ONLY the improved HTML code suitable for insertion into a <div> or <ul>. Do not add markdown blocks like \`\`\`html. Keep formatting simple.
+         
+         Style Guidelines:
+         - Tone: Formal, professional, sophisticated, and impactful.
+         - Authenticity: Write in a humanized way so it is undetectable as AI-generated. Avoid generic AI buzzwords.
+         - Structure: Use strong action verbs and quantifiable results.
+         
+         Output Constraint: Return ONLY the HTML code suitable for insertion into a <div> or <ul>. Do not add markdown blocks.
        `;
        contents = [{ role: 'user', parts: [{ text: prompt }] }];
     }
 
     // 5. Call the model
-    // gemini-3-flash-preview supports both text and multimodal
+    // gemini-3-flash-preview supports text, image, and pdf
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: contents,
