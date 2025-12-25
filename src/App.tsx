@@ -798,55 +798,176 @@ const App: React.FC = () => {
           </div>
       </div>
 
-      {/* AI Modal - Modern Dashboard Suite */}
+      {/* AI Modal - Modern Premium Dashboard Suite */}
 <div className={`modal-overlay ${activeModal === 'ai' ? 'open' : ''}`} style={{alignItems: 'center', padding: '20px'}}>
     <style>{`
-        /* AI SUITE MODERN STYLES */
-        .ai-suite-container { width: 1000px; height: 85vh; max-height: 800px; background: #fff; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); display: flex; overflow: hidden; font-family: 'Inter', 'Roboto', sans-serif; }
-        .ai-sidebar { width: 260px; background: #f8fafc; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; padding: 24px 16px; flex-shrink: 0; }
-        @media (max-width: 768px) { .ai-suite-container { flex-direction: column; height: 95vh; width: 95%; } .ai-sidebar { width: 100%; height: auto; padding: 15px; border-right: none; border-bottom: 1px solid #e2e8f0; flex-direction: row; overflow-x: auto; gap: 10px; align-items: center; } .ai-nav-label { display: block; white-space: nowrap; } .ai-sidebar-brand { display: none; } }
-        .ai-sidebar-brand { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 30px; padding-left: 12px; display: flex; align-items: center; gap: 10px; }
-        .ai-sidebar-brand i { background: -webkit-linear-gradient(45deg, #6366f1, #a855f7); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 22px; }
-        .ai-nav-btn { padding: 12px 16px; margin-bottom: 6px; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 500; color: #64748b; display: flex; align-items: center; gap: 12px; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); border: 1px solid transparent; }
-        .ai-nav-btn:hover { background: #fff; color: #334155; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .ai-nav-btn.active { background: #fff; color: #4f46e5; font-weight: 600; box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.15); border-color: #e0e7ff; }
-        .ai-nav-icon { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #94a3b8; transition: all 0.2s; font-size: 13px; }
-        .ai-nav-btn.active .ai-nav-icon { background: #e0e7ff; color: #4f46e5; }
-        .ai-main-area { flex: 1; background: #fff; display: flex; flex-direction: column; overflow: hidden; position: relative; }
-        .ai-header { padding: 20px 32px; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); z-index: 10; }
-        .ai-title h3 { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0; }
-        .ai-title p { font-size: 13px; color: #64748b; margin: 4px 0 0 0; }
-        .ai-content-scroll { padding: 32px; overflow-y: auto; height: 100%; }
-        .ai-tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; }
-        .tool-card { background: #fff; border: 1px solid #f1f5f9; border-radius: 20px; padding: 24px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; position: relative; display: flex; flex-direction: column; height: 100%; }
-        .tool-card:hover { transform: translateY(-6px); box-shadow: 0 20px 40px -10px rgba(0,0,0,0.08); border-color: #e2e8f0; }
-        .tool-icon { width: 56px; height: 56px; border-radius: 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 8px 16px -4px rgba(0,0,0,0.05); }
+        /* Premium AI Suite Styles */
+        .ai-suite-container {
+            width: 1000px; height: 85vh; max-height: 800px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(24px);
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.5) inset;
+            border: 1px solid rgba(255,255,255,0.6);
+            display: flex; overflow: hidden;
+            font-family: 'Inter', 'Roboto', sans-serif;
+            animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .ai-sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, #f8fafc 0%, #eff6ff 100%);
+            border-right: 1px solid rgba(226, 232, 240, 0.6);
+            display: flex; flex-direction: column; padding: 30px 20px;
+            flex-shrink: 0;
+        }
+        @media (max-width: 768px) {
+            .ai-suite-container { flex-direction: column; height: 95vh; width: 95%; }
+            .ai-sidebar { width: 100%; height: auto; padding: 15px; border-right: none; border-bottom: 1px solid #e2e8f0; flex-direction: row; overflow-x: auto; gap: 10px; align-items: center; }
+            .ai-nav-label { display: block; white-space: nowrap; }
+            .ai-sidebar-brand { display: none; }
+        }
+
+        .ai-sidebar-brand {
+            font-size: 20px; font-weight: 800; color: #1e293b; margin-bottom: 35px;
+            padding-left: 10px; display: flex; align-items: center; gap: 12px;
+            letter-spacing: -0.02em;
+        }
+        .ai-sidebar-brand i { 
+            background: linear-gradient(135deg, #6366f1, #a855f7); 
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; 
+            font-size: 24px; filter: drop-shadow(0 2px 4px rgba(99, 102, 241, 0.2));
+        }
+
+        .ai-nav-btn {
+            padding: 14px 18px; margin-bottom: 8px; border-radius: 14px;
+            cursor: pointer; font-size: 14px; font-weight: 500;
+            color: #64748b; display: flex; align-items: center; gap: 14px;
+            transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+            border: 1px solid transparent;
+        }
+        .ai-nav-btn:hover { background: rgba(255,255,255,0.6); color: #334155; transform: translateX(3px); }
+        .ai-nav-btn.active {
+            background: #fff; color: #4f46e5; font-weight: 600;
+            box-shadow: 0 4px 20px -2px rgba(79, 70, 229, 0.12), 0 0 0 1px rgba(79, 70, 229, 0.05);
+        }
+        
+        .ai-nav-icon {
+            width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+            background: rgba(241, 245, 249, 0.8); color: #94a3b8; transition: all 0.2s; font-size: 14px;
+        }
+        .ai-nav-btn.active .ai-nav-icon { background: rgba(224, 231, 255, 0.6); color: #4f46e5; }
+
+        .ai-main-area { flex: 1; background: rgba(255,255,255,0.6); display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        
+        .ai-header {
+            padding: 24px 40px; border-bottom: 1px solid rgba(241, 245, 249, 0.8);
+            display: flex; justify-content: space-between; align-items: center;
+            background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); z-index: 10;
+        }
+        .ai-title h3 { font-size: 20px; font-weight: 700; color: #0f172a; margin: 0; letter-spacing: -0.01em; }
+        .ai-title p { font-size: 14px; color: #64748b; margin: 6px 0 0 0; font-weight: 400; }
+        
+        .ai-content-scroll { padding: 40px; overflow-y: auto; height: 100%; }
+        
+        /* Premium Card Grid */
+        .ai-tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 28px; }
+        
+        .tool-card {
+            background: #fff;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 24px;
+            padding: 32px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
+            display: flex; flex-direction: column; height: 100%;
+            position: relative; overflow: hidden;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
+        }
+        .tool-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 100%);
+            opacity: 0; transition: opacity 0.4s ease; pointer-events: none;
+        }
+        .tool-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px -5px rgba(0,0,0,0.08), 0 8px 10px -6px rgba(0,0,0,0.01);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+        
+        .tool-icon {
+            width: 64px; height: 64px; border-radius: 20px; margin-bottom: 24px;
+            display: flex; align-items: center; justify-content: center; font-size: 28px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+            transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .tool-card:hover .tool-icon { transform: scale(1.1) rotate(-6deg); }
+        
+        /* Enhanced Gradients */
         .tool-icon.blue { background: linear-gradient(135deg, #eff6ff 0%, #bfdbfe 100%); color: #2563eb; }
         .tool-icon.purple { background: linear-gradient(135deg, #faf5ff 0%, #e9d5ff 100%); color: #9333ea; }
         .tool-icon.green { background: linear-gradient(135deg, #f0fdf4 0%, #bbf7d0 100%); color: #16a34a; }
         .tool-icon.orange { background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%); color: #ea580c; }
-        .tool-name { font-size: 17px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
-        .tool-desc { font-size: 13px; color: #64748b; line-height: 1.6; margin-bottom: 20px; flex: 1; }
-        .tool-action { font-size: 13px; font-weight: 600; color: #4f46e5; display: flex; align-items: center; gap: 6px; margin-top: auto; transition: gap 0.2s; }
-        .tool-card:hover .tool-action { gap: 10px; }
-        .tool-interface { animation: fadeIn 0.3s ease; height: 100%; display: flex; flex-direction: column; }
-        .input-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 6px; margin-bottom: 20px; transition: all 0.2s; }
-        .input-box:focus-within { background: #fff; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); }
-        .naked-input { width: 100%; border: none; background: transparent; padding: 12px; outline: none; font-size: 14px; color: #334155; resize: none; font-family: inherit; }
-        .naked-select { width: 100%; border: none; background: transparent; padding: 12px; outline: none; font-size: 14px; color: #334155; cursor: pointer; }
-        .btn-gradient { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 14px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
-        .btn-gradient:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -5px rgba(79, 70, 229, 0.3); }
-        .btn-gradient:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
-        .result-box { margin-top: 24px; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 20px; position: relative; overflow: hidden; }
-        .result-box::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #4f46e5; }
-        .chat-container { display: flex; flex-direction: column; height: 500px; background: #f8fafc; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; }
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-        .chat-input-area { padding: 16px; background: #fff; border-top: 1px solid #e2e8f0; display: flex; gap: 10px; align-items: center; }
-        .msg { max-width: 80%; padding: 12px 16px; font-size: 14px; line-height: 1.5; position: relative; }
-        .msg.user { align-self: flex-end; background: #4f46e5; color: white; border-radius: 16px 16px 4px 16px; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2); }
-        .msg.ai { align-self: flex-start; background: #fff; color: #1e293b; border-radius: 16px 16px 16px 4px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .close-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: #f1f5f9; color: #64748b; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s; }
-        .close-btn:hover { background: #ef4444; color: white; transform: rotate(90deg); }
+        
+        .tool-name { font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 12px; letter-spacing: -0.02em; }
+        .tool-desc { font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 28px; flex: 1; font-weight: 400; }
+        
+        .tool-action {
+            margin-top: auto;
+            padding: 12px 20px;
+            background: #f8fafc;
+            color: #475569;
+            border-radius: 14px;
+            font-size: 13px; font-weight: 600;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        .tool-card:hover .tool-action {
+            background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+        }
+
+        /* Tool Interfaces */
+        .tool-interface { animation: fadeIn 0.4s ease; height: 100%; display: flex; flex-direction: column; }
+        
+        .input-box {
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 18px; padding: 8px; margin-bottom: 24px;
+            transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .input-box:focus-within { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); transform: translateY(-1px); }
+        
+        .naked-input, .naked-select { font-family: 'Inter', sans-serif; font-size: 15px; color: #1e293b; padding: 14px; }
+        .naked-input::placeholder { color: #94a3b8; }
+        
+        .btn-gradient {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white; border: none; padding: 16px 28px;
+            border-radius: 16px; font-weight: 600; font-size: 15px; cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+            display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%;
+        }
+        .btn-gradient:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(79, 70, 229, 0.4); }
+        .btn-gradient:active { transform: translateY(0); }
+        
+        .result-box {
+            margin-top: 30px; background: #fff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 30px;
+            position: relative; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.03);
+        }
+        .result-box::before { content: ''; position: absolute; top: 0; left: 0; width: 6px; height: 100%; background: linear-gradient(180deg, #4f46e5 0%, #818cf8 100%); }
+        
+        .chat-container { display: flex; flex-direction: column; height: 500px; background: #fff; border-radius: 20px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
+        .chat-messages { background: #f8fafc; }
+        .msg.user { background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%); box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15); border: none; }
+        
+        .close-btn {
+            width: 36px; height: 36px; border-radius: 12px; border: none; background: #f1f5f9; color: #64748b;
+            display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s;
+        }
+        .close-btn:hover { background: #fee2e2; color: #ef4444; transform: rotate(90deg); }
     `}</style>
 
     <div className="ai-suite-container">
@@ -877,9 +998,9 @@ const App: React.FC = () => {
             </div>
             
             <div style={{marginTop:'auto'}}>
-                <div style={{background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', borderRadius:'16px', padding:'20px', color:'white', textAlign:'center'}}>
-                    <div style={{fontSize:'12px', opacity:0.8, marginBottom:'8px'}}>Need Help?</div>
-                    <div style={{fontSize:'11px', lineHeight:'1.4', opacity:0.6}}>Our AI models are optimized for resume building.</div>
+                <div style={{background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius:'20px', padding:'24px', color:'white', textAlign:'center', boxShadow:'0 10px 20px -5px rgba(30, 41, 59, 0.3)'}}>
+                    <div style={{fontSize:'12px', fontWeight:600, opacity:0.9, marginBottom:'8px', textTransform:'uppercase', letterSpacing:'0.5px'}}>Pro Tip</div>
+                    <div style={{fontSize:'13px', lineHeight:'1.5', opacity:0.75}}>Use specific details in your prompts for better AI results.</div>
                 </div>
             </div>
         </div>
@@ -895,7 +1016,7 @@ const App: React.FC = () => {
                          aiSection === 'cover-letter' ? 'Cover Letter Generator' : 'Interview Simulator'}
                     </h3>
                     <p>
-                        {aiSection === 'dashboard' ? 'Select a tool to enhance your resume' : 
+                        {aiSection === 'dashboard' ? 'Select a specialized tool to enhance your career profile.' : 
                          aiSection === 'improver' ? 'Polish your content with professional rewriting' : 
                          aiSection === 'chat' ? 'Get instant answers to your career questions' :
                          aiSection === 'cover-letter' ? 'Create a tailored cover letter in seconds' : 'Practice with AI-driven mock interviews'}
@@ -957,10 +1078,10 @@ const App: React.FC = () => {
                             </button>
                             {aiResult && (
                                 <div className="result-box">
-                                    <div style={{fontSize:'11px', fontWeight:700, color:'#64748b', marginBottom:'10px', textTransform:'uppercase'}}>AI Suggestion</div>
-                                    <div className="editable" dangerouslySetInnerHTML={{__html: aiResult}} style={{fontSize:'14px', lineHeight:'1.6', color:'#334155'}}></div>
-                                    <div style={{marginTop:'15px', display:'flex', justifyContent:'flex-end'}}>
-                                        <button className="btn-save" onClick={applyAiResult} style={{padding:'8px 16px', borderRadius:'8px'}}><i className="fa-solid fa-check"></i> Apply to Resume</button>
+                                    <div style={{fontSize:'12px', fontWeight:700, color:'#64748b', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'0.5px'}}>AI Suggestion</div>
+                                    <div className="editable" dangerouslySetInnerHTML={{__html: aiResult}} style={{fontSize:'15px', lineHeight:'1.6', color:'#334155'}}></div>
+                                    <div style={{marginTop:'20px', display:'flex', justifyContent:'flex-end'}}>
+                                        <button className="btn-save" onClick={applyAiResult} style={{padding:'10px 20px', borderRadius:'10px', fontSize:'14px'}}><i className="fa-solid fa-check"></i> Apply to Resume</button>
                                     </div>
                                 </div>
                             )}
@@ -987,10 +1108,10 @@ const App: React.FC = () => {
                             </button>
                             {aiResult && (
                                 <div className="result-box">
-                                    <div style={{fontSize:'11px', fontWeight:700, color:'#64748b', marginBottom:'10px', textTransform:'uppercase'}}>Your Cover Letter</div>
-                                    <div className="editable" dangerouslySetInnerHTML={{__html: aiResult}} style={{fontSize:'14px', lineHeight:'1.6', color:'#334155', whiteSpace:'pre-wrap'}}></div>
-                                    <div style={{marginTop:'15px', display:'flex', justifyContent:'flex-end'}}>
-                                        <button className="btn-blue" onClick={() => navigator.clipboard.writeText(aiResult.replace(/<[^>]*>/g, ''))} style={{padding:'8px 16px', borderRadius:'8px'}}><i className="fa-solid fa-copy"></i> Copy Text</button>
+                                    <div style={{fontSize:'12px', fontWeight:700, color:'#64748b', marginBottom:'12px', textTransform:'uppercase', letterSpacing:'0.5px'}}>Your Cover Letter</div>
+                                    <div className="editable" dangerouslySetInnerHTML={{__html: aiResult}} style={{fontSize:'15px', lineHeight:'1.7', color:'#334155', whiteSpace:'pre-wrap', fontFamily:'Georgia, serif'}}></div>
+                                    <div style={{marginTop:'20px', display:'flex', justifyContent:'flex-end'}}>
+                                        <button className="btn-blue" onClick={() => navigator.clipboard.writeText(aiResult.replace(/<[^>]*>/g, ''))} style={{padding:'10px 20px', borderRadius:'10px', fontSize:'14px'}}><i className="fa-solid fa-copy"></i> Copy Text</button>
                                     </div>
                                 </div>
                             )}
@@ -1004,13 +1125,14 @@ const App: React.FC = () => {
                         <div className="chat-container" style={{flex:1, height:'auto'}}>
                             <div className="chat-messages" ref={interviewScrollRef}>
                                 {interviewHistory.length === 0 ? (
-                                    <div style={{textAlign:'center', marginTop:'40px', color:'#94a3b8'}}>
-                                        <div style={{fontSize:'40px', marginBottom:'10px', opacity:0.5}}><i className="fa-solid fa-user-tie"></i></div>
-                                        <p>Ready to practice?</p>
-                                        <div style={{maxWidth:'300px', margin:'15px auto'}}>
-                                            <input type="text" className="naked-input" style={{background:'#eef2ff', borderRadius:'10px', textAlign:'center', border:'1px solid #c7d2fe'}} placeholder="Enter Role (e.g. PM, Dev)" value={interviewRole} onChange={e => setInterviewRole(e.target.value)} />
+                                    <div style={{textAlign:'center', marginTop:'60px', color:'#94a3b8'}}>
+                                        <div style={{fontSize:'48px', marginBottom:'15px', opacity:0.5, color:'#ea580c'}}><i className="fa-solid fa-user-tie"></i></div>
+                                        <h4 style={{fontSize:'18px', color:'#1e293b', marginBottom:'8px'}}>Ready to practice?</h4>
+                                        <p style={{fontSize:'14px', marginBottom:'20px'}}>Enter the role you are applying for to start.</p>
+                                        <div style={{maxWidth:'300px', margin:'0 auto 20px auto'}}>
+                                            <input type="text" className="naked-input" style={{background:'#fff', borderRadius:'12px', textAlign:'center', border:'1px solid #cbd5e1', boxShadow:'0 2px 4px rgba(0,0,0,0.05)'}} placeholder="Enter Role (e.g. PM, Dev)" value={interviewRole} onChange={e => setInterviewRole(e.target.value)} />
                                         </div>
-                                        <button className="btn-gradient" style={{maxWidth:'200px', margin:'0 auto'}} onClick={startInterview} disabled={aiLoading || !interviewRole}>Start Mock Interview</button>
+                                        <button className="btn-gradient" style={{maxWidth:'220px', margin:'0 auto'}} onClick={startInterview} disabled={aiLoading || !interviewRole}>Start Mock Interview</button>
                                     </div>
                                 ) : (
                                     interviewHistory.map((msg, i) => (
@@ -1024,8 +1146,8 @@ const App: React.FC = () => {
                             
                             {interviewHistory.length > 0 && (
                                 <div className="chat-input-area">
-                                    <input type="text" className="naked-input" placeholder="Type your answer..." style={{background:'#f1f5f9', borderRadius:'20px', padding:'10px 15px'}} value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleInterviewChat()} />
-                                    <button className="btn" style={{background:'#4f46e5', color:'white', padding:'10px', borderRadius:'50%', width:'40px', height:'40px', justifyContent:'center', boxShadow:'0 4px 10px rgba(79, 70, 229, 0.3)'}} onClick={handleInterviewChat} disabled={aiLoading || !chatInput.trim()}><i className="fa-solid fa-paper-plane"></i></button>
+                                    <input type="text" className="naked-input" placeholder="Type your answer..." style={{background:'#f1f5f9', borderRadius:'20px', padding:'12px 18px', flex:1}} value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleInterviewChat()} />
+                                    <button className="btn" style={{background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)', color:'white', padding:'12px', borderRadius:'50%', width:'48px', height:'48px', justifyContent:'center', boxShadow:'0 4px 10px rgba(79, 70, 229, 0.3)'}} onClick={handleInterviewChat} disabled={aiLoading || !chatInput.trim()}><i className="fa-solid fa-paper-plane"></i></button>
                                 </div>
                             )}
                         </div>
@@ -1038,10 +1160,10 @@ const App: React.FC = () => {
                         <div className="chat-container" style={{flex:1, height:'auto'}}>
                             <div className="chat-messages" ref={chatScrollRef}>
                                 {chatHistory.length === 0 && (
-                                    <div style={{textAlign:'center', marginTop:'40px', color:'#94a3b8'}}>
-                                        <div style={{fontSize:'40px', marginBottom:'10px', opacity:0.5}}><i className="fa-solid fa-comments"></i></div>
-                                        <p>Hello! I'm your career assistant.</p>
-                                        <p style={{fontSize:'13px'}}>Ask me anything about your resume or job search.</p>
+                                    <div style={{textAlign:'center', marginTop:'60px', color:'#94a3b8'}}>
+                                        <div style={{fontSize:'48px', marginBottom:'15px', opacity:0.5, color:'#7e22ce'}}><i className="fa-solid fa-comments"></i></div>
+                                        <h4 style={{fontSize:'18px', color:'#1e293b', marginBottom:'8px'}}>Career Assistant</h4>
+                                        <p style={{fontSize:'14px'}}>Ask me anything about your resume, job search, or career path.</p>
                                     </div>
                                 )}
                                 {chatHistory.map((msg, i) => (
@@ -1053,16 +1175,16 @@ const App: React.FC = () => {
                                 {aiLoading && <div className="msg ai"><i className="fa-solid fa-circle-notch fa-spin"></i> Thinking...</div>}
                             </div>
                             <div className="chat-input-area">
-                                <button className="btn" style={{background:'#f1f5f9', color:'#64748b', padding:'10px', borderRadius:'50%', width:'40px', height:'40px', justifyContent:'center'}} onClick={() => aiImageInputRef.current?.click()}><i className="fa-solid fa-paperclip"></i></button>
+                                <button className="btn" style={{background:'#f1f5f9', color:'#64748b', padding:'12px', borderRadius:'50%', width:'48px', height:'48px', justifyContent:'center', transition:'all 0.2s'}} onClick={() => aiImageInputRef.current?.click()}><i className="fa-solid fa-paperclip"></i></button>
                                 <input type="file" ref={aiImageInputRef} className="hidden" accept="image/*,application/pdf" onChange={handleAiImageUpload} />
                                 {chatImage && (
-                                    <div style={{position:'relative', height:'40px', width:'40px'}}>
-                                        <img src={chatImage.startsWith('data:application/pdf') ? 'https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg' : chatImage} style={{width:'100%', height:'100%', objectFit:'cover', borderRadius:'6px'}} />
-                                        <div onClick={() => setChatImage(null)} style={{position:'absolute', top:-5, right:-5, background:'red', color:'white', borderRadius:'50%', width:15, height:15, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer'}}>x</div>
+                                    <div style={{position:'relative', height:'48px', width:'48px', marginRight:'8px'}}>
+                                        <img src={chatImage.startsWith('data:application/pdf') ? 'https://upload.wikimedia.org/wikipedia/commons/8/87/PDF_file_icon.svg' : chatImage} style={{width:'100%', height:'100%', objectFit:'cover', borderRadius:'8px'}} />
+                                        <div onClick={() => setChatImage(null)} style={{position:'absolute', top:-6, right:-6, background:'#ef4444', color:'white', borderRadius:'50%', width:18, height:18, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', border:'2px solid white'}}>x</div>
                                     </div>
                                 )}
-                                <input type="text" className="naked-input" placeholder="Type your message..." style={{background:'#f1f5f9', borderRadius:'20px', padding:'10px 15px'}} value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAiChat()} />
-                                <button className="btn" style={{background:'#4f46e5', color:'white', padding:'10px', borderRadius:'50%', width:'40px', height:'40px', justifyContent:'center', boxShadow:'0 4px 10px rgba(79, 70, 229, 0.3)'}} onClick={handleAiChat} disabled={aiLoading || (!chatInput.trim() && !chatImage)}><i className="fa-solid fa-paper-plane"></i></button>
+                                <input type="text" className="naked-input" placeholder="Type your message..." style={{background:'#f1f5f9', borderRadius:'20px', padding:'12px 18px', flex:1}} value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAiChat()} />
+                                <button className="btn" style={{background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)', color:'white', padding:'12px', borderRadius:'50%', width:'48px', height:'48px', justifyContent:'center', boxShadow:'0 4px 10px rgba(79, 70, 229, 0.3)'}} onClick={handleAiChat} disabled={aiLoading || (!chatInput.trim() && !chatImage)}><i className="fa-solid fa-paper-plane"></i></button>
                             </div>
                         </div>
                     </div>
@@ -1072,77 +1194,3 @@ const App: React.FC = () => {
         </div>
     </div>
 </div>
-      
-      {/* Colors Modal */}
-      <div className={`modal-overlay ${activeModal === 'colors' ? 'open' : ''}`}>
-          <div className="modal-box" style={{width: '400px'}}>
-              <h3 style={{marginBottom:'15px', color:'#2c3e50'}}>Choose Theme</h3>
-              <div style={{display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', width: '100%', marginBottom: '20px', padding: '10px', background: '#f8fafc', borderRadius: '12px'}}>
-                  {PRESET_THEMES.map((theme, idx) => ( <div key={idx} title={theme.name} onClick={() => { updateThemeCSS(theme.sidebarBg, theme.accentBlue, theme.textColor); setData({...data, theme: { sidebarBg: theme.sidebarBg, accentBlue: theme.accentBlue, textColor: theme.textColor }}); }} style={{ width: '50px', height: '50px', borderRadius: '50%', cursor: 'pointer', background: `conic-gradient(from 270deg, ${theme.sidebarBg} 0deg 180deg, ${theme.accentBlue} 180deg 270deg, #ffffff 270deg 360deg)`, border: '2px solid white', boxShadow: (data.theme.sidebarBg === theme.sidebarBg && data.theme.accentBlue === theme.accentBlue) ? '0 0 0 3px #3498db, 0 5px 15px rgba(0,0,0,0.2)' : '0 2px 5px rgba(0,0,0,0.15)', transform: (data.theme.sidebarBg === theme.sidebarBg && data.theme.accentBlue === theme.accentBlue) ? 'scale(1.1)' : 'scale(1)', transition: 'all 0.2s ease', margin: '0 auto' }} /> ))}
-              </div>
-              <h4 style={{fontSize:'14px', marginBottom:'15px', width:'100%', textAlign:'left', color:'#64748b'}}>Custom Colors</h4>
-              <div className="color-row"> <span className="color-label">Sidebar Background</span> <div style={{display:'flex', alignItems:'center', gap:'10px'}}> <span style={{fontSize:'12px', color:'#666'}}>{data.theme.sidebarBg}</span> <input type="color" className="color-input" value={data.theme.sidebarBg} onChange={e => { updateThemeCSS(e.target.value, data.theme.accentBlue, data.theme.textColor); setData({...data, theme: {...data.theme, sidebarBg: e.target.value}}); }} /> </div> </div>
-              <div className="color-row"> <span className="color-label">Accent Color</span> <div style={{display:'flex', alignItems:'center', gap:'10px'}}> <span style={{fontSize:'12px', color:'#666'}}>{data.theme.accentBlue}</span> <input type="color" className="color-input" value={data.theme.accentBlue} onChange={e => { updateThemeCSS(data.theme.sidebarBg, e.target.value, data.theme.textColor); setData({...data, theme: {...data.theme, accentBlue: e.target.value}}); }} /> </div> </div>
-              <div className="color-row"> <span className="color-label">Main Text Color</span> <div style={{display:'flex', alignItems:'center', gap:'10px'}}> <span style={{fontSize:'12px', color:'#666'}}>{data.theme.textColor}</span> <input type="color" className="color-input" value={data.theme.textColor} onChange={e => { updateThemeCSS(data.theme.sidebarBg, data.theme.accentBlue, e.target.value); setData({...data, theme: {...data.theme, textColor: e.target.value}}); }} /> </div> </div>
-              <div className="modal-actions"> <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Close</button> <button className="btn btn-remove" onClick={() => { updateThemeCSS(INITIAL_THEME.sidebarBg, INITIAL_THEME.accentBlue, INITIAL_THEME.textColor); setData({...data, theme: INITIAL_THEME}); }}>Reset Default</button> </div>
-          </div>
-      </div>
-
-      {/* Crop Modal */}
-      <div className={`modal-overlay ${activeModal === 'crop' ? 'open' : ''}`}>
-          <div className="modal-box">
-              <h3 style={{marginBottom:'10px'}}>Crop & Enhance</h3>
-              <div className="img-container-crop"><img id="image-to-crop" src={croppingImg || ''} alt="" /></div>
-              <div style={{marginBottom:'15px', width:'100%', display:'flex', flexDirection:'column', alignItems:'center'}}> <label style={{fontSize:'12px', fontWeight:600, color:'#64748b', marginBottom:'8px', textTransform:'uppercase'}}>Output Quality</label> <div style={{display:'flex', gap:'8px', background:'#f1f5f9', padding:'6px', borderRadius:'8px'}}> {[1, 2, 4].map(level => ( <button key={level} onClick={() => setEnhanceLevel(level as 1|2|4)} className="btn" style={{ background: enhanceLevel === level ? '#3b82f6' : 'transparent', color: enhanceLevel === level ? 'white' : '#64748b', boxShadow: enhanceLevel === level ? '0 2px 5px rgba(59, 130, 246, 0.3)' : 'none', border: '1px solid', borderColor: enhanceLevel === level ? '#2563eb' : 'transparent', transition: 'all 0.2s', fontSize: '12px' }}> {level}x {level === 1 ? '(Std)' : level === 2 ? '(HD)' : '(4K)'} </button> ))} </div> </div>
-              <div className="modal-actions"> <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button> <button className="btn btn-save" onClick={performCrop}>Save Image</button> </div>
-          </div>
-      </div>
-
-      {/* Image Options Modal */}
-      <div className={`modal-overlay ${activeModal === 'img-opts-profile' || activeModal === 'img-opts-signature' ? 'open' : ''}`}>
-          <div className="modal-box" style={{width: '300px', textAlign: 'center'}}>
-              <h3 style={{marginBottom: '15px'}}>Image Options</h3>
-              <div className="modal-actions" style={{flexDirection: 'column'}}> <button className="btn btn-blue" style={{justifyContent: 'center'}} onClick={() => { setActiveModal(null); if(activeModal==='img-opts-profile') fileInputRef.current?.click(); else sigInputRef.current?.click(); }}>Upload / Change</button> <button className="btn btn-remove" style={{justifyContent: 'center'}} onClick={() => { setActiveModal(null); if(activeModal==='img-opts-profile') setData({...data, profileImage: DEFAULT_PROFILE_URI}); else setData({...data, signatureImage: null}); }}>Remove</button> <button className="btn btn-cancel" style={{justifyContent: 'center'}} onClick={() => setActiveModal(null)}>Cancel</button> </div>
-          </div>
-      </div>
-
-       {/* Admin Security Modal */}
-       <div className={`modal-overlay ${activeModal === 'admin-sec' ? 'open' : ''}`}>
-           <div className="modal-box" style={{width:'400px'}}>
-               <h3 style={{marginBottom:'15px', color:'#2c3e50'}}>Admin Security</h3>
-               {adminSecStep === 'verify' && ( <div style={{width:'100%', background:'#eef2ff', padding:'15px', borderRadius:'10px'}}> <div className="input-group" style={{marginBottom:'15px'}}> <label style={{display:'block', marginBottom:'5px', fontSize:'13px', fontWeight:600}}>Security Question</label> <select className="login-input" value={secQ} onChange={e => setSecQ(e.target.value)} style={{width:'100%', padding:'10px'}}> <option value="1">Best Institute</option> <option value="2">Village Name</option> <option value="4">Primary School Name</option> </select> </div> <div className="input-group" style={{marginBottom:'15px'}}> <label style={{display:'block', marginBottom:'5px', fontSize:'13px', fontWeight:600}}>Your Answer</label> <input type="text" className="login-input" style={{width:'100%', padding:'10px'}} value={secAns} onChange={e => setSecAns(e.target.value)} /> </div> <div className="input-group"> <label style={{display:'block', marginBottom:'5px', fontSize:'13px', fontWeight:600}}>Captcha: {captchaVal}</label> <input type="text" className="login-input" style={{width:'100%', padding:'10px'}} placeholder="Enter Code" value={captchaInput} onChange={e => setCaptchaInput(e.target.value)} /> </div> <div className="modal-actions"> <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button> <button className="btn btn-save" onClick={verifyAdminSecurity}>Verify</button> </div> </div> )}
-               {adminSecStep === 'update' && ( <div style={{width:'100%', background:'#f0fdf4', padding:'15px', borderRadius:'10px'}}> <h4 style={{marginBottom:'10px', color:'#166534'}}>Credentials & API Key</h4> <div style={{marginBottom: '15px'}}> <label style={{display:'block', fontSize:'12px', fontWeight:600, marginBottom:'4px'}}>Update Admin Login (Optional)</label> <input type="text" className="login-input" style={{width:'100%', padding:'8px', marginBottom:'8px'}} placeholder="New Username" value={newAdminUser} onChange={e => setNewAdminUser(e.target.value)} /> <input type="text" className="login-input" style={{width:'100%', padding:'8px'}} placeholder="New Password" value={newAdminPass} onChange={e => setNewAdminPass(e.target.value)} /> </div> <div style={{marginBottom: '15px', borderTop: '1px solid #ddd', paddingTop: '15px'}}> <label style={{display:'block', fontSize:'12px', fontWeight:600, marginBottom:'4px'}}>AI API Key</label> <input type="password" className="login-input" style={{width:'100%', padding:'8px'}} placeholder="Enter Gemini API Key" value={newApiKey} onChange={e => setNewApiKey(e.target.value)} /> <small style={{display:'block', marginTop:'4px', color:'#666', fontSize:'10px'}}>Default: gen-lang-client-...</small> </div> <div className="modal-actions"> <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button> <button className="btn btn-save" onClick={saveAdminCreds}>Save All</button> </div> </div> )}
-           </div>
-       </div>
-
-        {/* Guest Manager Modal */}
-        <div className={`modal-overlay ${activeModal === 'guest-mgr' ? 'open' : ''}`}>
-           <div className="modal-box" style={{width: '500px'}}>
-               <h3 style={{marginBottom:'15px', color:'#2c3e50'}}>Manage Guest Access</h3>
-               <div style={{width:'100%', background:'#f9f9f9', padding:'15px', borderRadius:'8px', marginBottom:'15px'}}> <h4 style={{marginBottom:'10px', fontSize:'13px'}}>Create New Guest Pass</h4> <div className="guest-form-row"> <input type="text" className="guest-input" placeholder="User" value={newGuestUser} onChange={e => setNewGuestUser(e.target.value)} /> <input type="text" className="guest-input" placeholder="Pass" value={newGuestPass} onChange={e => setNewGuestPass(e.target.value)} /> </div> <div className="guest-perms"> {Object.keys(guestPerms).map(p => ( <label key={p}><input type="checkbox" checked={(guestPerms as any)[p]} onChange={e => setGuestPerms({...guestPerms, [p]: e.target.checked})} /> {p.toUpperCase()}</label> ))} </div> <div className="guest-form-row" style={{alignItems: 'center'}}> <span style={{fontSize:'12px', fontWeight:600, color:'#555'}}>Time (Mins):</span> <input type="number" className="guest-input" value={newGuestTime} onChange={e => setNewGuestTime(parseInt(e.target.value))} style={{maxWidth:'80px'}} /> <button className="btn btn-save" onClick={() => { const expiry = Date.now() + (newGuestTime * 60000); const newGuest = { user: newGuestUser, pass: newGuestPass, expiry, duration: newGuestTime, permissions: guestPerms }; const list = [...guestList, newGuest]; localStorage.setItem('rajResumeGuests', JSON.stringify(list)); setGuestList(list); setNewGuestUser(''); setNewGuestPass(''); }}>Generate</button> </div> </div>
-               <div style={{width:'100%', maxHeight:'200px', overflowY:'auto'}}> <table className="guest-table"> <thead><tr><th>User</th><th>Duration</th><th>Action</th></tr></thead> <tbody> {guestList.map((g, i) => ( <tr key={i}> <td>{g.user}</td> <td>{g.duration}m</td> <td><button className="btn btn-remove" style={{padding:'4px 8px'}} onClick={() => { const list = guestList.filter((_, idx) => idx !== i); localStorage.setItem('rajResumeGuests', JSON.stringify(list)); setGuestList(list); }}><i className="fa-solid fa-trash"></i></button></td> </tr> ))} </tbody> </table> </div>
-               <div className="modal-actions"> <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Close</button> </div>
-           </div>
-        </div>
-
-         {/* Social Modal */}
-         <div className={`modal-overlay ${activeModal === 'social' ? 'open' : ''}`}>
-             <div className="modal-box" style={{width:'500px'}}>
-                 <h3 style={{marginBottom:'15px'}}>Manage Social Media</h3>
-                 <div style={{width:'100%', marginBottom:'20px'}}> {data.socials.map((item, index) => ( <div key={item.id} className="social-row"> <input type="checkbox" checked={item.enabled} onChange={e => { const newSocials = [...data.socials]; newSocials[index].enabled = e.target.checked; setData({...data, socials: newSocials}); }} /> <div style={{width:'24px', textAlign:'center'}}><i className={item.icon} style={{color:'#3498db'}}></i></div> <input type="text" className="social-input" value={item.url} onChange={e => { const newSocials = [...data.socials]; newSocials[index].url = e.target.value; setData({...data, socials: newSocials}); }} /> </div> ))} </div>
-                 <div className="modal-actions"> <button className="btn btn-save" onClick={() => setActiveModal(null)}>Done</button> </div>
-             </div>
-         </div>
-
-         {/* Cert Upload Modal */}
-         <div className={`modal-overlay ${activeModal === 'cert' ? 'open' : ''}`}>
-             <div className="modal-box" style={{width:'500px'}}>
-                 <h3 style={{marginBottom:'10px', color:'#1e3a8a'}}>Manage Certificates</h3>
-                 {certAuthStep === 'login' ? ( <div style={{width: '100%', background: '#f8fafc', padding: '15px', borderRadius: '10px'}}> <h4 style={{marginBottom:'10px', color:'#334155'}}>Verification Required</h4> <div className="input-group" style={{marginBottom:'10px'}}> <input type="text" className="login-input" placeholder="Admin Username" value={certAuthUser} onChange={e => setCertAuthUser(e.target.value)} /> </div> <div className="input-group" style={{marginBottom:'10px'}}> <input type="password" className="login-input" placeholder="Admin Password" value={certAuthPass} onChange={e => setCertAuthPass(e.target.value)} /> </div> <div className="input-group" style={{marginBottom:'10px', display:'flex', gap:'10px', alignItems:'center'}}> <div className="captcha-display" style={{flex:1, fontSize:'16px'}} onClick={() => setCertCaptchaVal(generateCaptcha())}>{certCaptchaVal}</div> <input type="text" className="login-input" style={{flex:1}} placeholder="Captcha" value={certCaptcha} onChange={e => setCertCaptcha(e.target.value)} /> </div> <div className="modal-actions"> <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Cancel</button> <button className="btn btn-save" onClick={verifyCertAuth}>Access</button> </div> </div> ) : ( <div style={{width:'100%'}}> {[['M.A Certificate', 'ma'], ['B.A Certificate', 'ba'], ['12th Grade', '12'], ['10th Grade', '10']].map(([label, key]) => ( <div key={key} className="input-group" style={{marginBottom:'15px'}}> <label style={{display:'block', fontSize:'13px', fontWeight:600}}>{label}</label> <div style={{display:'flex', gap:'5px'}}> <input type="text" className="login-input" style={{flex:1, padding:'8px'}} placeholder="Link or Data URI" value={certLinks[key as keyof CertLinks] || ''} onChange={e => setCertLinks({...certLinks, [key]: e.target.value})} /> <button className="btn btn-purple" style={{padding:'8px 12px'}} title="Upload File" onClick={() => { setActiveCertKey(key as keyof CertLinks); certUploadRef.current?.click(); }}> <i className="fa-solid fa-upload"></i> </button> </div> </div> ))} <div className="modal-actions"> <button className="btn btn-cancel" onClick={() => setActiveModal(null)}>Close</button> <button className="btn btn-save" onClick={() => { localStorage.setItem('rajCertificates', btoa(JSON.stringify(certLinks))); setActiveModal(null); }}>Save Changes</button> </div> </div> )}
-             </div>
-         </div>
-    </div>
-  );
-};
-
-export default App;
