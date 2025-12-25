@@ -19,11 +19,16 @@ const SEC_ANS_2 = "QmVndXNhcmFp"; // Begusarai
 // SEC_ANS_3 (DOB) - REMOVED
 const SEC_ANS_4 = "UmFqIFB1YmxpYyBTY2hvb2w="; // Raj Public School
 
-// Admin Credentials Verification Constants (Matches LoginScreen)
-const DEFAULT_USER_ENC = "MTAxNzEwMjk="; // 10171029
-const DEFAULT_PASS_ENC = "UmFqQDIwMDQwNg=="; // Raj@200406
+// Admin Credentials Verification Constants (Matches LoginScreen - Salted Reverse Base64)
+const DEFAULT_USER_ENC = "OTIwMTcxMDFfUkFKX1NFQ1VSRQ=="; // 10171029
+const DEFAULT_PASS_ENC = "NjA0MDAyQGphUl9SQUpfU0VDVVJF"; // Raj@200406
 
 const DEFAULT_PROFILE_URI = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect fill='%23f0f0f0' width='150' height='150'/%3E%3Ctext fill='%23999999' font-family='sans-serif' font-size='20' dy='10.5' font-weight='bold' x='50%25' y='50%25' text-anchor='middle'%3EPhoto%3C/text%3E%3C/svg%3E";
+
+// Security Helper: Reverse String + Salt + Base64
+const secureEncode = (str: string): string => {
+    return btoa(str.split('').reverse().join('') + "_RAJ_SECURE");
+};
 
 const INITIAL_THEME: ThemeColors = {
   sidebarBg: '#2c3e50',
@@ -222,7 +227,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const enforceDesktopMode = () => {
         let metaViewport = document.querySelector('meta[name="viewport"]');
-        const content = 'width=1280, user-scalable=yes';
+        const content = 'width=1280, initial-scale=0.1, user-scalable=yes';
         
         if (metaViewport) {
             metaViewport.setAttribute('content', content);
@@ -380,10 +385,27 @@ const App: React.FC = () => {
         return false;
     };
     
-    // Prevent Touch Context (Long Press on Mobile)
+    // Prevent Touch Context & 3-Finger Gesture
     const handleTouchStart = (e: TouchEvent) => {
         if (e.touches.length > 1) { // Block multi-touch
             e.preventDefault();
+        }
+        // Specific check for 3 fingers (often used for screenshots)
+        if (e.touches.length === 3) {
+            setBlackout(true);
+            setTimeout(() => setBlackout(false), 1500); // Longer blackout
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        }
+    };
+    
+    // Visibility Change: Blackout on App Switch/Minimize
+    const handleVisibilityChange = () => {
+        if (document.hidden) {
+            setBlackout(true);
+        } else {
+            // Delay removal to ensure obscured in switcher transition
+            setTimeout(() => setBlackout(false), 500);
         }
     };
     
@@ -391,8 +413,7 @@ const App: React.FC = () => {
     document.addEventListener('keyup', handleKeyDown); // Catch PrintScreen on keyup too
     document.addEventListener('contextmenu', handleContextMenu);
     document.addEventListener('touchstart', handleTouchStart, {passive: false});
-    
-    // REMOVED: visibilitychange listener to stop blackout on app switch/minimize.
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     let timer: any;
     if (authMode === 'guest' && guestUser) {
@@ -426,6 +447,7 @@ const App: React.FC = () => {
       document.removeEventListener('keyup', handleKeyDown);
       document.removeEventListener('contextmenu', handleContextMenu);
       document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (timer) clearInterval(timer);
       clearInterval(rotater);
     }
@@ -835,8 +857,9 @@ const App: React.FC = () => {
       const stored = localStorage.getItem('rajAdminConfig');
       const creds = stored ? JSON.parse(stored) : { user: DEFAULT_USER_ENC, pass: DEFAULT_PASS_ENC };
       
-      const u = btoa(certAuthUser);
-      const p = btoa(certAuthPass);
+      // USE SECURE ENCODE FOR VERIFICATION
+      const u = secureEncode(certAuthUser);
+      const p = secureEncode(certAuthPass);
 
       if (u === creds.user && p === creds.pass) {
           setCertAuthStep('manage');
@@ -980,7 +1003,8 @@ const App: React.FC = () => {
       
       // Update Credentials if provided
       if(newAdminUser && newAdminPass) {
-          const creds = { user: btoa(newAdminUser), pass: btoa(newAdminPass) };
+          // USE SECURE ENCODE FOR SAVING
+          const creds = { user: secureEncode(newAdminUser), pass: secureEncode(newAdminPass) };
           localStorage.setItem('rajAdminConfig', JSON.stringify(creds));
           alert("Credentials Updated. Please Re-login.");
           logout();

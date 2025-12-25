@@ -19,11 +19,16 @@ const SEC_ANS_2 = "QmVndXNhcmFp"; // Begusarai
 // SEC_ANS_3 (DOB) - REMOVED
 const SEC_ANS_4 = "UmFqIFB1YmxpYyBTY2hvb2w="; // Raj Public School
 
-// Admin Credentials Verification Constants (Matches LoginScreen)
-const DEFAULT_USER_ENC = "MTAxNzEwMjk="; // 10171029
-const DEFAULT_PASS_ENC = "UmFqQDIwMDQwNg=="; // Raj@200406
+// Admin Credentials Verification Constants (Matches LoginScreen - Salted Reverse Base64)
+const DEFAULT_USER_ENC = "OTIwMTcxMDFfUkFKX1NFQ1VSRQ=="; // 10171029
+const DEFAULT_PASS_ENC = "NjA0MDAyQGphUl9SQUpfU0VDVVJF"; // Raj@200406
 
 const DEFAULT_PROFILE_URI = "data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect fill='%23f0f0f0' width='150' height='150'/%3E%3Ctext fill='%23999999' font-family='sans-serif' font-size='20' dy='10.5' font-weight='bold' x='50%25' y='50%25' text-anchor='middle'%3EPhoto%3C/text%3E%3C/svg%3E";
+
+// Security Helper: Reverse String + Salt + Base64
+const secureEncode = (str: string): string => {
+    return btoa(str.split('').reverse().join('') + "_RAJ_SECURE");
+};
 
 const INITIAL_THEME: ThemeColors = {
   sidebarBg: '#2c3e50',
@@ -852,8 +857,9 @@ const App: React.FC = () => {
       const stored = localStorage.getItem('rajAdminConfig');
       const creds = stored ? JSON.parse(stored) : { user: DEFAULT_USER_ENC, pass: DEFAULT_PASS_ENC };
       
-      const u = btoa(certAuthUser);
-      const p = btoa(certAuthPass);
+      // USE SECURE ENCODE FOR VERIFICATION
+      const u = secureEncode(certAuthUser);
+      const p = secureEncode(certAuthPass);
 
       if (u === creds.user && p === creds.pass) {
           setCertAuthStep('manage');
@@ -997,7 +1003,8 @@ const App: React.FC = () => {
       
       // Update Credentials if provided
       if(newAdminUser && newAdminPass) {
-          const creds = { user: btoa(newAdminUser), pass: btoa(newAdminPass) };
+          // USE SECURE ENCODE FOR SAVING
+          const creds = { user: secureEncode(newAdminUser), pass: secureEncode(newAdminPass) };
           localStorage.setItem('rajAdminConfig', JSON.stringify(creds));
           alert("Credentials Updated. Please Re-login.");
           logout();
