@@ -40,3 +40,18 @@ export const chatWithAi = async (
 ): Promise<string> => {
   return callGemini({ instruction, image, resumeContext, mode: 'chat' });
 };
+
+export const generateCoverLetter = async (
+  jobDetails: { title: string; company: string; description: string },
+  resumeContext: ResumeData
+): Promise<string> => {
+  return callGemini({ jobDetails, resumeContext, mode: 'cover-letter' });
+};
+
+export const chatInterview = async (
+  instruction: string,
+  history: {role: string, text: string}[],
+  resumeContext: ResumeData
+): Promise<string> => {
+  return callGemini({ instruction, history, resumeContext, mode: 'interview' });
+};
